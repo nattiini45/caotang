@@ -187,7 +187,7 @@ export function ManuscriptImportActions(): ReactNode {
       const { odtPreviewSource, odtSizeRefusal } = await import('../import-preview/odt-source.js');
       const { XML_LIMITS } = await import('@caotang/import-read/xml');
       if (file.size > XML_LIMITS.maxInput) {
-        const [first, second] = new Uint8Array(await file.slice(0, 2).arrayBuffer());
+        const [first, second] = new Uint8Array(await file.slice(0, 4).arrayBuffer());
         const maxBytes = first === 0x50 && second === 0x4b
           ? (await import('@caotang/import-read/zip')).ARCHIVE_LIMITS.maxArchiveBytes
           : XML_LIMITS.maxInput;
@@ -207,7 +207,8 @@ export function ManuscriptImportActions(): ReactNode {
   const openTable = async (file: File): Promise<void> => {
     try {
       const { tablePreviewSource, tableSizeRefusal } = await import('../import-preview/table-source.js');
-      const refusal = tableSizeRefusal(file.name, file.size);
+      const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+      const refusal = tableSizeRefusal(file.name, file.size, head[0] === 0x50 && head[1] === 0x4b && head[2] === 0x03 && head[3] === 0x04);
       if (refusal !== undefined) {
         report({ text: refusal, tone: 'error' });
         return;
@@ -272,7 +273,7 @@ export function ManuscriptImportActions(): ReactNode {
         <Trans>Import OpenDocument…</Trans>
       </button>
       <button type="button" className="button is-quiet" onClick={() => tableFile.current?.click()}>
-        <Trans>Import CSV/TSV…</Trans>
+        <Trans>Import spreadsheet…</Trans>
       </button>
       <button type="button" className="button is-quiet" onClick={() => kankaFile.current?.click()}>
         <Trans>Import Kanka…</Trans>
@@ -317,8 +318,8 @@ export function ManuscriptImportActions(): ReactNode {
         ref={tableFile}
         type="file"
         hidden
-        accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain"
-        aria-label={t`CSV or TSV file`}
+        accept=".csv,.tsv,.txt,.xlsx,text/csv,text/tab-separated-values,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        aria-label={t`Spreadsheet file`}
         onChange={(event) => {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = '';

@@ -729,7 +729,7 @@ describe('the import preview (#267)', () => {
     expect(read('apps/desktop/src/components/TweeImportDialog.tsx')).toContain('tweePreviewSource(');
     expect(guide).toContain('- **The import preview.** An import that brings in a whole book shows it first as a proposed binder beside its text');
     expect(guide).toContain('one **Undo** takes all of it back, pictures and codex entries included');
-    expect(guide).toContain('**Import Twee**, **Import Inklewriter**, **Import Highland**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import captions…**, **Import CSV/TSV…**, **Import Word…**, **Import OpenDocument…**, **Import HTML…**, **Import EPUB…**, **Import AO3…** and **Import Kanka…** open it.');
+    expect(guide).toContain('**Import Twee**, **Import Inklewriter**, **Import Highland**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import captions…**, **Import spreadsheet…**, **Import Word…**, **Import OpenDocument…**, **Import HTML…**, **Import EPUB…**, **Import AO3…** and **Import Kanka…** open it.');
     expect(guide).toContain('**Import Inklewriter** reads an Inklewriter story export');
     expect(read('apps/desktop/src/components/ScriptImport.tsx')).toContain('inklewriterPreviewSource');
     expect(guide).toContain('**Import RTFD…** an `.rtfd` package');
@@ -763,13 +763,13 @@ describe('the import preview (#267)', () => {
     expect(manuscript).toContain('rtfdPreviewSource');
     expect(manuscript).toContain("await import('../import-preview/html-source.js')");
     expect(manuscript).toContain("await import('../import-preview/table-source.js')");
-    expect(guide).toContain('- **Import CSV/TSV…** reads a spreadsheet-style `.csv`, `.tsv` or delimited `.txt` file');
-    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('- **CSV/TSV importieren…** liest eine tabellarische `.csv`-, `.tsv`- oder begrenzte `.txt`-Datei');
+    expect(guide).toContain('- **Import spreadsheet…** reads a spreadsheet-style `.csv`, `.tsv` or delimited `.txt` file, or one worksheet of an Excel `.xlsx` workbook,');
+    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('- **Tabelle importieren…** liest eine tabellarische `.csv`-, `.tsv`- oder begrenzte `.txt`-Datei oder ein Arbeitsblatt einer Excel-`.xlsx`-Arbeitsmappe');
     expect(read('docs/architecture/import-table.md')).toContain('the writer chooses what the rows become and what each column means');
     expect(manuscript).toContain('htmlZipPreviewSource');
     expect(read('apps/desktop/src/components/Binder.tsx')).toContain('<ManuscriptImportActions />');
     const notYet = guide.slice(guide.indexOf('## What is not in this build yet'));
-    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, captions, CSV/TSV, Word, OpenDocument, HTML, EPUB, AO3 and Kanka imports open the preview');
+    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, captions, spreadsheet, Word, OpenDocument, HTML, EPUB, AO3 and Kanka imports open the preview');
     expect(notYet).not.toContain('There is no **Import RTF** command yet');
     expect(changelog).toContain('**One import preview for every structured import.**');
     expect(read('docs/architecture/import-preview.md')).toContain('## 5. The commit: `binder.importTree`');

@@ -114,7 +114,6 @@ describe('the CSV/TSV preview', () => {
     expect(warning).not.toContain('imported as Other');
   });
 
-
   it("uses the writer's type mapping for a formula-guarded type value", async () => {
     const source = await open(bytesOf("Name,Type\nAda,'=character\n"));
     const initial = initialSettings(source.chips(), source.options());
@@ -122,6 +121,14 @@ describe('the CSV/TSV preview', () => {
     await source.prepare?.(settings, new AbortController().signal);
     source.plan(settings, NO_OVERRIDES);
     expect(source.codexRows?.()[0]?.type).toBe('location');
+  });
+
+  it('keeps a text table whose first letters are PK on the delimited-text reader', async () => {
+    const source = await open(bytesOf('PK,Description\nAda,First\n'), 'pk.csv');
+    const settings = initialSettings(source.chips(), source.options());
+    await source.prepare?.(settings, new AbortController().signal);
+    expect(source.chips().some((chip) => chip.id === 'table-delimiter')).toBe(true);
+    expect(source.grid?.(settings).rows).toEqual([['Ada', 'First']]);
   });
 
   it('reads UTF-16LE text and round-trips the timeline export into scene declarations', async () => {
@@ -266,5 +273,34 @@ describe('the CSV/TSV preview', () => {
     expect([...(row?.description ?? '')]).toHaveLength(1998);
     expect(row?.description.endsWith('…')).toBe(true);
     expect(row?.page?.body).toContain(long);
+  });
+});
+
+describe('the Excel workbook preview', () => {
+  it('reads a workbook sheet, offers the worksheet picker and re-reads the chosen sheet', async () => {
+    const { cell, xlsx } = await import('../../../packages/import-xlsx/test/fixtures/workbook.js');
+    const book = xlsx([
+      { name: 'Bible', rows: [
+        [cell('A1', '0', 's'), cell('B1', '1', 's')],
+        [cell('A2', '2', 's'), cell('B2', 'A cartographer', 'inlineStr')],
+      ] },
+      { name: 'Timeline', rows: [
+        [cell('A1', '3', 's'), cell('B1', '4', 's')],
+        [cell('A2', '5', 's'), cell('B2', 'The ferry came at noon.', 'inlineStr')],
+      ] },
+    ], { shared: ['Name', 'Description', 'Elena', 'Title', 'Summary', 'The Landing'] });
+    const source = await open(book, 'table.xlsx');
+    const firstSettings = initialSettings(source.chips(), source.options());
+    expect(source.chips().some((chip) => chip.id === 'table-delimiter')).toBe(false);
+    const worksheet = source.chips().find((chip) => chip.id === 'table-sheet');
+    expect(worksheet?.options?.map((option) => option.value)).toEqual(['Bible', 'Timeline']);
+    await source.prepare?.(firstSettings, new AbortController().signal);
+    expect(source.grid?.(firstSettings).rows).toEqual([['Elena', 'A cartographer']]);
+
+    const sheetSettings = settingsWith(firstSettings, { 'table-sheet': 'Timeline' });
+    expect(source.prepared?.(sheetSettings)).toBe(false);
+    await source.prepare?.(sheetSettings, new AbortController().signal);
+    expect(source.prepared?.(sheetSettings)).toBe(true);
+    expect(source.grid?.(sheetSettings).rows).toEqual([['The Landing', 'The ferry came at noon.']]);
   });
 });

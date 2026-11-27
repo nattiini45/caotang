@@ -1,5 +1,5 @@
 /**
- * **Import CSV/TSV…** through the shared preview (#288): delimited rows become codex entries or timeline scenes.
+ * **Import spreadsheet…** through the shared preview (#288, #289): delimited rows or one Excel worksheet become codex entries or timeline scenes.
  * Decoding and RFC 4180 parsing run in the preview's `'self'` Worker; mapping and re-planning stay cheap on the main
  * thread. The first twenty rows are shown with a role dropdown per column, a writer's mapping is reapplied to the
  * same column layout, and Import commits one `binder.importTree`.
@@ -13,13 +13,17 @@ import {
   mapCodexRows,
   tableCellText,
   tableColumns,
+  MAX_TABLE_COLUMNS,
+  MAX_TABLE_ROWS,
   typeWord,
   type ColumnRole,
   type MappedTimelineRow,
   type TableDelimiter,
   type TableParse,
+  type TableCellRow,
 } from '@caotang/import-table';
 import { MAX_TEXT_BYTES, MAX_TEXT_LINES } from '@caotang/import-read/text';
+import { ARCHIVE_LIMITS } from '@caotang/import-read/zip';
 import type { DecodableEncoding } from '@caotang/store/encoding';
 
 import { formatCount } from '../i18n/locale.js';
@@ -32,6 +36,7 @@ export type TableImportOpening = { readonly ok: true; readonly source: ImportPre
 const MODE = 'table-mode';
 const HEADER = 'table-header';
 const DELIMITER = 'table-delimiter';
+const SHEET = 'table-sheet';
 const ENCODING = 'table-encoding';
 const DATE_FORMAT = 'table-date-format';
 const DAY_ZERO = 'table-day-zero';
@@ -43,12 +48,26 @@ const ENCODINGS: readonly DecodableEncoding[] = ['utf-8', 'utf-16le', 'utf-16be'
 const CODEX_ROLES: readonly ColumnRole[] = ['name', 'aliases', 'type', 'description', 'long-text', 'tags', 'include-policy', 'image-file', 'relation', 'detail', 'scope', 'ignore'];
 const TIMELINE_ROLES: readonly ColumnRole[] = ['title', 'start', 'end', 'duration', 'order', 'part', 'folder', 'pov', 'participants', 'location', 'arc', 'summary', 'body', 'ignore'];
 
-interface CachedTable {
+interface CachedCsvTable {
+  readonly kind: 'csv';
   readonly encoding: DecodableEncoding;
   readonly guessed: boolean;
   readonly candidates: readonly { readonly encoding: DecodableEncoding }[];
   readonly parse: TableParse;
 }
+
+interface CachedXlsxTable {
+  readonly kind: 'xlsx';
+  readonly sheets: string[];
+  readonly sheet: string;
+  readonly rows: TableCellRow[];
+  readonly formulas: number;
+  readonly times: number;
+  readonly errors: number;
+  readonly truncatedCells: number;
+}
+
+type CachedTable = CachedCsvTable | CachedXlsxTable;
 
 interface FirstRead {
   readonly suggested: DecodableEncoding;
@@ -106,9 +125,10 @@ const validRole = (mode: 'codex' | 'timeline', value: string | undefined): Colum
   ((mode === 'codex' ? CODEX_ROLES : TIMELINE_ROLES) as readonly string[]).includes(value ?? '') ? (value as ColumnRole) : undefined;
 
 /** The file is checked by size before its bytes are read. */
-export function tableSizeRefusal(fileName: string, size: number): string | undefined {
-  if (size <= MAX_TEXT_BYTES) return undefined;
-  return t`${{ file: fileName }} is too large to import as a table: the import reads files up to ${{ limit: formatCount(MAX_TEXT_BYTES / (1024 * 1024)) }} MB.`;
+export function tableSizeRefusal(fileName: string, size: number, workbook = false): string | undefined {
+  const limit = workbook ? ARCHIVE_LIMITS.maxArchiveBytes : MAX_TEXT_BYTES;
+  if (size <= limit) return undefined;
+  return t`${{ file: fileName }} is too large to import as a table: the import reads files up to ${{ limit: formatCount(limit / (1024 * 1024)) }} MB.`;
 }
 
 function storageKey(mode: 'codex' | 'timeline', columns: readonly string[]): string {
@@ -173,36 +193,70 @@ function parseLosses(parse: TableParse): PreviewLoss[] {
   });
 }
 
-/** Open a `.csv`, `.tsv` or `.txt` table for the shared preview. */
+function workbookLosses(cached: CachedXlsxTable): PreviewLoss[] {
+  const losses: PreviewLoss[] = [];
+  if (cached.times > 0) losses.push({ message: t`${plural({ count: cached.times }, { one: '# date cell carries', other: '# date cells carry' })} a time of day, which this import does not keep.`, count: cached.times });
+  if (cached.truncatedCells > 0) losses.push({ message: t`${plural({ count: cached.truncatedCells }, { one: '# cell is', other: '# cells are' })} cut at Excel's own character limit.`, count: cached.truncatedCells });
+  return losses;
+}
+
+/** Open a `.csv`, `.tsv` or `.txt` table, or an `.xlsx` workbook starting with the zip signature, for the shared preview. */
 export function tablePreviewSource(fileName: string, bytes: Uint8Array): TableImportOpening {
-  if (bytes.length > MAX_TEXT_BYTES) return { ok: false, message: tableSizeRefusal(fileName, bytes.length) ?? '' };
+  const workbook = bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
+  const limit = workbook ? ARCHIVE_LIMITS.maxArchiveBytes : MAX_TEXT_BYTES;
+  if (bytes.length > limit) return { ok: false, message: tableSizeRefusal(fileName, bytes.length, workbook) ?? '' };
 
   const host = new ReaderHost();
   const cache = new Map<string, CachedTable>();
   let first: FirstRead | null = null;
   let currentSettings: PreviewSettings = { chips: {}, options: {} };
 
-  const keyOf = (settings: PreviewSettings): string => `${encodingOf(settings, first) ?? 'auto'}|${delimiterOf(settings) ?? 'auto'}`;
+  const keyOf = (settings: PreviewSettings): string => workbook ? `sheet|${settings.chips[SHEET] ?? 'first'}` : `${encodingOf(settings, first) ?? 'auto'}|${delimiterOf(settings) ?? 'auto'}`;
   const parseFailure = (kind: string, limit?: number): Error => {
     if (kind === 'too-many-rows') return new Error(t`${{ file: fileName }} has more rows than one table import reads: at most ${{ limit: formatCount(limit ?? 0) }}.`);
     if (kind === 'too-many-columns') return new Error(t`${{ file: fileName }} has more columns than one table import reads: at most ${{ limit: formatCount(limit ?? 0) }}.`);
     return new Error(t`${{ file: fileName }} holds no readable table rows.`);
   };
+  const workbookFailure = (kind: string, value?: string): Error => {
+    if (kind === 'too-many-rows') return parseFailure(kind, MAX_TABLE_ROWS);
+    if (kind === 'too-many-columns') return parseFailure(kind, MAX_TABLE_COLUMNS);
+    if (kind === 'too-many-cells') return new Error(t`${{ file: fileName }} has more cells than one workbook import reads: at most ${{ limit: formatCount(2_000_000) }}.`);
+    if (kind === 'empty') return new Error(t`${{ file: fileName }} holds no readable table rows.`);
+    if (kind === 'unknown-sheet') return new Error(t`${{ file: fileName }} has no worksheet named ${{ value: value ?? '' }}.`);
+    if (kind === 'no-sheets') return new Error(t`${{ file: fileName }} holds no readable worksheets.`);
+    if (kind === 'not-xlsx' || kind === 'archive' || kind === 'not-xml') return new Error(t`${{ file: fileName }} could not be read as an Excel workbook.`);
+    return new Error(t`${{ file: fileName }} holds no readable table rows.`);
+  };
 
-  const cacheReply = (reply: Awaited<ReturnType<ReaderHost['read']>>, settings: PreviewSettings): CachedTable => {
+  const cacheCsvReply = (reply: Awaited<ReturnType<ReaderHost['read']>>, settings: PreviewSettings): CachedCsvTable => {
     if (reply.kind !== 'table') throw new Error(t`The file could not be read as a table.`);
     if (reply.result.status !== 'read') throw new Error(t`The table text could not be decoded.`);
     if (!reply.result.parse.ok) throw parseFailure(reply.result.parse.error.kind, reply.result.parse.error.limit);
-    const value: CachedTable = { encoding: reply.result.encoding, guessed: reply.result.guessed, candidates: reply.result.candidates, parse: reply.result.parse.value };
+    const value: CachedCsvTable = { kind: 'csv', encoding: reply.result.encoding, guessed: reply.result.guessed, candidates: reply.result.candidates, parse: reply.result.parse.value };
     cache.clear();
     cache.set(keyOf(settings), value);
     return value;
   };
 
+  const cacheXlsxReply = (reply: Awaited<ReturnType<ReaderHost['read']>>, settings: PreviewSettings): CachedXlsxTable => {
+    if (reply.kind !== 'xlsx') throw new Error(t`The file could not be read as an Excel workbook.`);
+    if (!reply.result.ok) throw workbookFailure(reply.result.error.kind, 'name' in reply.result.error ? reply.result.error.name : undefined);
+    const value: CachedXlsxTable = { kind: 'xlsx', ...reply.result.value };
+    cache.set(keyOf(settings), value);
+    cache.set(`sheet|${value.sheet}`, value);
+    return value;
+  };
+
+
   const load = async (progress: (text: string) => void, signal: AbortSignal): Promise<void> => {
     progress(t`Reading ${{ file: fileName }}…`);
-    await host.open({ kind: 'open', reader: 'table', bytes }, signal);
     const initial: PreviewSettings = { chips: {}, options: {} };
+    if (workbook) {
+      await host.open({ kind: 'open', reader: 'xlsx', bytes }, signal);
+      cacheXlsxReply(await host.read({ kind: 'read', reader: 'xlsx' }, signal), initial);
+      return;
+    }
+    await host.open({ kind: 'open', reader: 'table', bytes }, signal);
     const reply = await host.read({ kind: 'read', reader: 'table' }, signal);
     if (reply.kind !== 'table') throw new Error(t`The file could not be read as a table.`);
     if (reply.result.status === 'undecoded') {
@@ -213,12 +267,12 @@ export function tablePreviewSource(fileName: string, bytes: Uint8Array): TableIm
       if (suggested === undefined) throw new Error(t`Caotang cannot tell which encoding ${{ file: fileName }} is in, so it cannot import it.`);
       const settings: PreviewSettings = { chips: { [ENCODING]: suggested }, options: {} };
       const second = await host.read({ kind: 'read', reader: 'table', encoding: suggested }, signal);
-      const cached = cacheReply(second, settings);
+      const cached = cacheCsvReply(second, settings);
       first = { suggested, guessed: true, choices: [...new Set([suggested, ...decode.detection.candidates.map((candidate) => candidate.encoding)])] };
       cache.set(keyOf(initial), cached);
       return;
     }
-    const cached = cacheReply(reply, initial);
+    const cached = cacheCsvReply(reply, initial);
     first = {
       suggested: cached.encoding,
       guessed: cached.guessed,
@@ -229,10 +283,15 @@ export function tablePreviewSource(fileName: string, bytes: Uint8Array): TableIm
 
   const prepare = async (settings: PreviewSettings, signal: AbortSignal): Promise<void> => {
     if (cache.has(keyOf(settings))) return;
+    if (workbook) {
+      const sheet = settings.chips[SHEET];
+      cacheXlsxReply(await host.read({ kind: 'read', reader: 'xlsx', ...(sheet === undefined ? {} : { sheet }) }, signal), settings);
+      return;
+    }
     const encoding = encodingOf(settings, first);
     const delimiter = delimiterOf(settings);
     const reply = await host.read({ kind: 'read', reader: 'table', ...(encoding === undefined ? {} : { encoding }), ...(delimiter === undefined ? {} : { delimiter }) }, signal);
-    cacheReply(reply, settings);
+    cacheCsvReply(reply, settings);
   };
 
   const cachedFor = (settings: PreviewSettings): CachedTable | undefined => cache.get(keyOf(settings)) ?? cache.values().next().value as CachedTable | undefined;
@@ -240,7 +299,8 @@ export function tablePreviewSource(fileName: string, bytes: Uint8Array): TableIm
   const shapeFor = (settings: PreviewSettings) => {
     const cached = cachedFor(settings);
     if (cached === undefined) return undefined;
-    const shape = tableColumns(cached.parse.rows, headerOf(settings));
+    const rows = cached.kind === 'csv' ? cached.parse.rows : cached.rows;
+    const shape = tableColumns(rows, headerOf(settings));
     const mode = modeOf(settings);
     const guessed = guessColumnRoles(shape.columns, mode);
     const remembered = storedRoles(mode, shape.columns);
@@ -280,8 +340,9 @@ export function tablePreviewSource(fileName: string, bytes: Uint8Array): TableIm
     return [
       { id: MODE, label: t`Rows become`, value: mode, options: [{ value: 'codex', label: t`Codex entries` }, { value: 'timeline', label: t`Timeline scenes` }] },
       { id: HEADER, label: t`First row`, value: headerOf(settings) ? 'header' : 'data', options: [{ value: 'header', label: t`Column names` }, { value: 'data', label: t`Data` }] },
-      { id: DELIMITER, label: t`Delimiter`, value: delimiterOf(settings) ?? 'auto', options: [{ value: 'auto', label: t`Automatic` }, { value: ',', label: t`Comma` }, { value: ';', label: t`Semicolon` }, { value: '\t', label: t`Tab` }, { value: '|', label: t`Pipe` }] },
-      ...(first === null || first.choices.length === 0 ? [] : [{ id: ENCODING, label: t`Encoding`, value: settings.chips[ENCODING] ?? first.suggested, options: first.choices.map((encoding) => ({ value: encoding, label: encodingLabel(encoding) })) }]),
+      ...(workbook && shape?.cached.kind === 'xlsx' && shape.cached.sheets.length > 1 ? [{ id: SHEET, label: t`Worksheet`, value: settings.chips[SHEET] ?? shape.cached.sheet, options: shape.cached.sheets.map((name) => ({ value: name, label: name })) }] : []),
+      ...(workbook ? [] : [{ id: DELIMITER, label: t`Delimiter`, value: delimiterOf(settings) ?? 'auto', options: [{ value: 'auto', label: t`Automatic` }, { value: ',', label: t`Comma` }, { value: ';', label: t`Semicolon` }, { value: '\t', label: t`Tab` }, { value: '|', label: t`Pipe` }] }]),
+      ...(workbook || first === null || first.choices.length === 0 ? [] : [{ id: ENCODING, label: t`Encoding`, value: settings.chips[ENCODING] ?? first.suggested, options: first.choices.map((encoding) => ({ value: encoding, label: encodingLabel(encoding) })) }]),
       ...(mode === 'timeline' ? [
         { id: DATE_FORMAT, label: t`Date format`, value: settings.chips[DATE_FORMAT] ?? 'iso', options: [{ value: 'iso', label: t`ISO year-month-day` }, { value: 'dmy', label: t`Day/month/year` }, { value: 'mdy', label: t`Month/day/year` }] },
         { id: DAY_ZERO, label: t`Day zero`, value: settings.chips[DAY_ZERO] ?? 'earliest', options: [{ value: 'earliest', label: t`The earliest dated row` }, ...anchored.slice(0, 30).map((row) => ({ value: `row:${row.row}`, label: t`Row ${{ line: row.row }} — ${{ row: row.title }}` }))] },
@@ -432,7 +493,7 @@ export function tablePreviewSource(fileName: string, bytes: Uint8Array): TableIm
     if (shape.mode === 'codex') {
       for (const [index, value] of typeValuesOf(settings).entries()) saveType(value, settings.chips[typeId(index)] ?? storedType(value) ?? typeWord(value) ?? 'other');
     }
-    const tableLosses = parseLosses(shape.cached.parse);
+    const tableLosses = shape.cached.kind === 'csv' ? parseLosses(shape.cached.parse) : workbookLosses(shape.cached);
     if (shape.mode === 'codex') {
       const mapped = mapCodexRows(shape.columns, shape.data, shape.roles);
       const rows = codexRows(settings);
@@ -489,7 +550,12 @@ export function tablePreviewSource(fileName: string, bytes: Uint8Array): TableIm
         const shape = shapeFor(currentSettings);
         const lines = [];
         if (shape !== undefined) lines.push(t`Rows are read as ${{ count: formatCount(shape.data.length) }} data rows. The column mapping is reapplied when this same column layout is imported again.`);
-        if (first?.guessed === true) lines.push(t`The file is read as ${{ encoding: encodingLabel(encodingOf(currentSettings, first) ?? first.suggested) }}, a guess. If letters look wrong, choose another encoding.`);
+        if (shape?.cached.kind === 'xlsx') {
+          lines.push(t`Rows come from the worksheet ${{ value: shape.cached.sheet }}.`);
+          if (shape.cached.formulas > 0) lines.push(t`${plural({ count: shape.cached.formulas }, { one: '# formula is', other: '# formulas are' })} read as a cached value; formulas are never calculated.`);
+          if (shape.cached.errors > 0) lines.push(t`${plural({ count: shape.cached.errors }, { one: '# cell holds', other: '# cells hold' })} a workbook error, kept as its text.`);
+        }
+        if (!workbook && first?.guessed === true) lines.push(t`The file is read as ${{ encoding: encodingLabel(encodingOf(currentSettings, first) ?? first.suggested) }}, a guess. If letters look wrong, choose another encoding.`);
         return [{ heading: t`Table`, label: t`Table`, lines }];
       },
       importLabel: (plan) => t`Import ${plural({ count: plan.counts.scenes > 0 ? plan.counts.scenes : plan.counts.words }, { one: '# row', other: '# rows' })}`,

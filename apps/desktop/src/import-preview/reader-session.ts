@@ -16,7 +16,7 @@ import type { RtfReadResult, RtfdReadResult } from '@caotang/import-rtf';
 import type { ReaderOpen, ReaderRead, ReaderResult, SerializableRtfResult } from './reader-protocol.js';
 
 type State =
-  | { readonly reader: 'text' | 'captions' | 'table' | 'rtf' | 'inklewriter' | 'highland'; readonly bytes: Uint8Array }
+  | { readonly reader: 'text' | 'captions' | 'table' | 'xlsx' | 'rtf' | 'inklewriter' | 'highland'; readonly bytes: Uint8Array }
   | { readonly reader: 'rtfd'; readonly archive: ImportArchive }
   | { readonly reader: 'html'; readonly bytes: Uint8Array; readonly fileName: string }
   | { readonly reader: 'html-archive'; readonly archive: ImportArchive }
@@ -36,7 +36,7 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
   let state: State | null = null;
 
   const open = async (req: ReaderOpen): Promise<void> => {
-    if (req.reader === 'text' || req.reader === 'captions' || req.reader === 'table' || req.reader === 'rtf' || req.reader === 'inklewriter' || req.reader === 'highland') {
+    if (req.reader === 'text' || req.reader === 'captions' || req.reader === 'table' || req.reader === 'xlsx' || req.reader === 'rtf' || req.reader === 'inklewriter' || req.reader === 'highland') {
       state = { reader: req.reader, bytes: req.bytes };
       return;
     }
@@ -104,6 +104,11 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
         kind: 'table',
         result: { status: 'read', encoding: decoded.encoding, guessed: decoded.guessed, candidates: decoded.candidates, parse },
       };
+    }
+    if (req.reader === 'xlsx') {
+      if (state.reader !== 'xlsx') throw new Error('The import reader is not an Excel workbook reader.');
+      const { readXlsx } = await import('@caotang/import-xlsx');
+      return { kind: 'xlsx', result: await readXlsx(state.bytes, req.sheet === undefined ? {} : { sheet: req.sheet }) };
     }
     if (req.reader === 'inklewriter') {
       if (state.reader !== 'inklewriter') throw new Error('The import reader is not an Inklewriter reader.');

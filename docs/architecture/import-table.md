@@ -1,16 +1,16 @@
 # The CSV/TSV table import 🧭
 
-> Status: the package `packages/import-table` (`@caotang/import-table`) is **built** (#288), and **Import CSV/TSV…** in the binder calls it through the shared preview (#267) in the `'self'` Worker host (#390). It reads `.csv`, `.tsv` and delimited `.txt` into codex entries or timeline scenes, writes one `binder.importTree`, and takes the whole import back with one Undo. Epic: #263.
+> Status: the package `packages/import-table` (`@caotang/import-table`) is **built** (#288), and the CSV/TSV half of **Import spreadsheet…** in the binder calls it through the shared preview (#267) in the `'self'` Worker host (#390). It reads `.csv`, `.tsv` and delimited `.txt` into codex entries or timeline scenes, writes one `binder.importTree`, and takes the whole import back with one Undo. Epic: #263.
 
 ## 1. Purpose
 
 A character bible, story bible or timeline often starts in a spreadsheet long before it becomes a manuscript. The table import is the writer-controlled bridge: the file supplies rows, the writer chooses what the rows become and what each column means, and Caotang writes only after the shared preview shows the result. The reader is own code (MIT), pure and DOM-free. It has no third-party dependency, no `eval`, no `new Function` and no WebAssembly. It takes decoded text: `@caotang/import-read/text` owns the encodings, their detection and their byte and line caps.
 
-The source is deliberately not a spreadsheet application. It reads rectangular delimited text. Formulas, styles, multiple sheets and merged cells belong to the XLSX reader (#289); an image file named by a row is text, because a standalone CSV carries no image bytes.
+The source is deliberately not a spreadsheet application. It reads rectangular delimited text. Formulas, styles, multiple sheets and merged cells belong to the XLSX reader (#289; `import-xlsx.md`); an image file named by a row is text, because a standalone CSV carries no image bytes.
 
 ## 2. Reading
 
-- **Input and size.** The binder button accepts `.csv`, `.tsv` and `.txt`. The preview checks `file.size` before reading bytes; a file over the shared `MAX_TEXT_BYTES` cap is refused on the status line. UTF-8 with or without a BOM and UTF-16LE/BE with a BOM come through the shared text reader, whose encoding choice remains visible when it guessed.
+- **Input and size.** The binder button accepts `.csv`, `.tsv`, `.txt` and `.xlsx`; bytes starting with the zip signature go to the workbook reader, and the delimited-text reader described here receives the rest. The preview checks `file.size` before reading bytes; a file over the shared `MAX_TEXT_BYTES` cap is refused on the status line. UTF-8 with or without a BOM and UTF-16LE/BE with a BOM come through the shared text reader, whose encoding choice remains visible when it guessed.
 - **Delimiter.** Comma, semicolon, tab and pipe are candidates. The sniffer parses the first rows with each candidate and picks the one making the most consistent multi-column table; the preview shows a Delimiter choice so the writer can override it. A single-column file is still read, but no delimiter is meaningfully detected.
 - **RFC 4180 quoting.** A quote at the start of a field opens a quoted cell; two quotes inside it are one quote; a newline inside it is part of the cell. CRLF, CR and LF row endings are normalised. Quotes elsewhere are literal text, because spreadsheet writers disagree and inventing structure there is worse than keeping the text.
 - **Rows.** Blank rows are dropped. The first row is column names by default and can be marked as data. Missing trailing cells read as empty strings. A row wider than the first is kept, and inconsistent row widths are counted as one loss rather than silently repaired.
@@ -60,10 +60,10 @@ The preview names an empty or oversized table, an unterminated quote, inconsiste
 
 ## 6. What is not built
 
-- XLSX workbooks and their vendor presets (#289), Plottr (#290), yWriter (#291), novelWriter (#294) and Scapple (#295).
+- Plottr (#290), yWriter (#291), novelWriter (#294) and Scapple (#295); XLSX workbooks are `import-xlsx.md` (#289), whose vendor presets remain unbuilt until real fixtures exist.
 - Typed codex relations (#223) and detail fields (#221); table columns for them are preserved as research-page text.
 - Reading image bytes named by a table row.
-- Importing formulas, cell styles, multiple sheets, merged cells or a spreadsheet's comments.
+- Importing cell styles, merged cells or a spreadsheet's comments; workbook formulas are read only as cached values by `import-xlsx.md`.
 
 ## 7. Tests
 

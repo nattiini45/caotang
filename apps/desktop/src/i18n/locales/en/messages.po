@@ -954,6 +954,16 @@ msgstr "{count, plural, one {{name}: mentioned in {where}, sends # reference} ot
 msgid "{count, plural, one {{name}: named by this shot, sends # reference} other {{name}: named by this shot, sends # references}}"
 msgstr "{count, plural, one {{name}: named by this shot, sends # reference} other {{name}: named by this shot, sends # references}}"
 
+#. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
+#: apps/desktop/src/import-preview/table-source.ts
+msgid "{count, plural, one {# cell holds} other {# cells hold}} a workbook error, kept as its text."
+msgstr "{count, plural, one {# cell holds} other {# cells hold}} a workbook error, kept as its text."
+
+#. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
+#: apps/desktop/src/import-preview/table-source.ts
+msgid "{count, plural, one {# cell is} other {# cells are}} cut at Excel's own character limit."
+msgstr "{count, plural, one {# cell is} other {# cells are}} cut at Excel's own character limit."
+
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "{count, plural, one {# change applied. Undo restores it.} other {# changes applied. Undo restores them.}}"
@@ -963,6 +973,11 @@ msgstr "{count, plural, one {# change applied. Undo restores it.} other {# chang
 #: apps/desktop/src/components/GoalRecovery.tsx
 msgid "{count, plural, one {# check or document was skipped. It is not evidence of a pass.} other {# checks or documents were skipped. They are not evidence of a pass.}}"
 msgstr "{count, plural, one {# check or document was skipped. It is not evidence of a pass.} other {# checks or documents were skipped. They are not evidence of a pass.}}"
+
+#. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
+#: apps/desktop/src/import-preview/table-source.ts
+msgid "{count, plural, one {# date cell carries} other {# date cells carry}} a time of day, which this import does not keep."
+msgstr "{count, plural, one {# date cell carries} other {# date cells carry}} a time of day, which this import does not keep."
 
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
@@ -982,6 +997,11 @@ msgstr "{count, plural, one {# finding} other {# findings}}"
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "{count, plural, one {# footnote, comment or deletion has no place in the text and cannot be kept.} other {# footnotes, comments and deletions have no place in the text and cannot be kept.}}"
 msgstr "{count, plural, one {# footnote, comment or deletion has no place in the text and cannot be kept.} other {# footnotes, comments and deletions have no place in the text and cannot be kept.}}"
+
+#. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
+#: apps/desktop/src/import-preview/table-source.ts
+msgid "{count, plural, one {# formula is} other {# formulas are}} read as a cached value; formulas are never calculated."
+msgstr "{count, plural, one {# formula is} other {# formulas are}} read as a cached value; formulas are never calculated."
 
 #. Binder row labels. Interpolated values: access is an access level's name, from is the node the rule was set on, title is a row's title.
 #: apps/desktop/src/components/Binder.tsx
@@ -1691,6 +1711,11 @@ msgstr "{file} codex index"
 msgid "{file} could not be read as a Highland script."
 msgstr "{file} could not be read as a Highland script."
 
+#. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
+#: apps/desktop/src/import-preview/table-source.ts
+msgid "{file} could not be read as an Excel workbook."
+msgstr "{file} could not be read as an Excel workbook."
+
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
 #: apps/desktop/src/components/ManuscriptImport.tsx
@@ -1707,6 +1732,11 @@ msgstr "{file} could not be read: {problem}."
 #: apps/desktop/src/components/context-labels.ts
 msgid "{file} has {tokens} tokens; the first {sent} were sent."
 msgstr "{file} has {tokens} tokens; the first {sent} were sent."
+
+#. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
+#: apps/desktop/src/import-preview/table-source.ts
+msgid "{file} has more cells than one workbook import reads: at most {limit}."
+msgstr "{file} has more cells than one workbook import reads: at most {limit}."
 
 #. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
 #: apps/desktop/src/import-preview/table-source.ts
@@ -1750,8 +1780,20 @@ msgstr "{file} has no passage to import. A Twee story makes one knot for each pa
 
 #. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
 #: apps/desktop/src/import-preview/table-source.ts
+msgid "{file} has no worksheet named {value}."
+msgstr "{file} has no worksheet named {value}."
+
+#. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
+#. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
+#. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
+#: apps/desktop/src/import-preview/table-source.ts
 msgid "{file} holds no readable table rows."
 msgstr "{file} holds no readable table rows."
+
+#. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
+#: apps/desktop/src/import-preview/table-source.ts
+msgid "{file} holds no readable worksheets."
+msgstr "{file} holds no readable worksheets."
 
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #: apps/desktop/src/import-preview/captions-source.ts
@@ -8581,11 +8623,6 @@ msgstr "Crop of panel {number}: drag to move it, the corner handle resizes it; t
 msgid "Crops placed"
 msgstr "Crops placed"
 
-#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
-#: apps/desktop/src/components/ManuscriptImport.tsx
-msgid "CSV or TSV file"
-msgstr "CSV or TSV file"
-
 #. Prompt pack rows and checks. Interpolated values: name, shot and problem are a codex entry name, a shot label and a record problem; vendor is a video model's name; reason and failure are failure messages; where and the reasons come from the pack engine; the count is a number.
 #: apps/desktop/src/media/prompt-pack-model.ts
 msgid "CSV shot list"
@@ -11987,11 +12024,6 @@ msgstr "Import codex entries"
 
 #. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
 #: apps/desktop/src/components/ManuscriptImport.tsx
-msgid "Import CSV/TSV…"
-msgstr "Import CSV/TSV…"
-
-#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
-#: apps/desktop/src/components/ManuscriptImport.tsx
 msgid "Import EPUB…"
 msgstr "Import EPUB…"
 
@@ -12049,6 +12081,11 @@ msgstr "Import RTFD…"
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Import script"
 msgstr "Import script"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import spreadsheet…"
+msgstr "Import spreadsheet…"
 
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #: apps/desktop/src/import-preview/captions-source.ts
@@ -19545,6 +19582,11 @@ msgstr "Rows are read as {count} data rows. The column mapping is reapplied when
 msgid "Rows become"
 msgstr "Rows become"
 
+#. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
+#: apps/desktop/src/import-preview/table-source.ts
+msgid "Rows come from the worksheet {value}."
+msgstr "Rows come from the worksheet {value}."
+
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "RSS feed (.rss.xml)"
@@ -21633,6 +21675,11 @@ msgstr "Splash"
 msgid "Split: {kind}, because {reason}"
 msgstr "Split: {kind}, because {reason}"
 
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Spreadsheet file"
+msgstr "Spreadsheet file"
+
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "Sprint"
@@ -23675,6 +23722,11 @@ msgstr "The file could not be read as a Highland script."
 #: apps/desktop/src/import-preview/table-source.ts
 msgid "The file could not be read as a table."
 msgstr "The file could not be read as a table."
+
+#. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
+#: apps/desktop/src/import-preview/table-source.ts
+msgid "The file could not be read as an Excel workbook."
+msgstr "The file could not be read as an Excel workbook."
 
 #. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in), from (a section label or Inklewriter flag name as written), to (the name it is imported under)
 #: apps/desktop/src/import-preview/inklewriter-source.ts
@@ -28497,6 +28549,11 @@ msgstr "Working copy"
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Working…"
 msgstr "Working…"
+
+#. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
+#: apps/desktop/src/import-preview/table-source.ts
+msgid "Worksheet"
+msgstr "Worksheet"
 
 #. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
