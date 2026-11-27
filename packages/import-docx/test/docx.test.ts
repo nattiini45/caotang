@@ -141,6 +141,7 @@ describe('the body (#279)', () => {
     if (!read.ok) return;
     const paras = read.value.document.blocks.filter((block) => block.kind === 'para');
     expect(paras[0]?.kind === 'para' ? paras[0].md : '').toBe('\\# Chapter \\*door\\* \\`code\\` \\[name\\](target)');
+    expect(paras[0]?.kind === 'para' ? paras[0].text : '').toBe('# Chapter *door* `code` [name](target)');
     expect(paras[1]?.kind === 'para' ? paras[1].md : '').toBe('**bold**[good](https://example.com/)[^1]');
     expect(read.value.document.footnotes?.map((note) => [note.label, note.md])).toEqual([['1', 'The \\*note\\*.']]);
   });
@@ -275,6 +276,18 @@ describe('notes, comments and pictures (#279)', () => {
     if (!read.ok) return;
     const para = read.value.document.blocks.find((block) => block.kind === 'para');
     expect(para?.kind === 'para' ? para.text : '').toBe('First boxSecond box');
+  });
+
+  it('flattens a text box nested inside another text box once', async () => {
+    const innerBox = `<w:txbxContent>${p('Inner box')}</w:txbxContent>`;
+    const outerBox = `<w:txbxContent>${p('Outer box')}<w:p><w:r>${innerBox}</w:r></w:p></w:txbxContent>`;
+    const drawing = `<w:p><w:r><w:drawing><wp:inline><a:graphic><a:graphicData>${outerBox}</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+    const read = await readDocx(docx({ body: drawing }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const para = read.value.document.blocks.find((block) => block.kind === 'para');
+    expect(para?.kind === 'para' ? para.text : '').toBe('Outer boxInner box');
+    expect(read.value.dropped.textBoxes).toBe(2);
   });
 
   it('imports a picture inside a nested text box once', async () => {

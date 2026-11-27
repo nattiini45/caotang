@@ -316,9 +316,26 @@ function textBox(element: XmlElement, state: WalkState, inherited: RunStyle, del
   return kids(element, 'p').map((paragraph) => renderRuns(paragraph, state, inherited, deleting)).join('');
 }
 
+/** Every outermost text box nested anywhere under a drawing, a legacy picture or an object, in document order. */
+function outermostTextBoxes(element: XmlElement): XmlElement[] {
+  const found: XmlElement[] = [];
+  const walk = (current: XmlElement): void => {
+    for (const child of current.children) {
+      if (child.type !== 'element') continue;
+      if (child.local === 'txbxContent') {
+        found.push(child);
+        continue;
+      }
+      walk(child);
+    }
+  };
+  walk(element);
+  return found;
+}
+
 /** Every text box nested anywhere under a drawing, a legacy picture or an object. */
 function nestedTextBoxes(element: XmlElement, state: WalkState, inherited: RunStyle, deleting: boolean): string {
-  return descendants(element, 'txbxContent').map((box) => textBox(box, state, inherited, deleting)).join('');
+  return outermostTextBoxes(element).map((box) => textBox(box, state, inherited, deleting)).join('');
 }
 
 /** Descendants with a local name, skipping anything inside a text box the recursive run renderer already owns. */
@@ -409,6 +426,11 @@ function paragraphSignals(paragraph: XmlElement, state: WalkState, md: string): 
   return { signals, heading, list, quote: style?.quote === true, pageBreak, toc };
 }
 
+/** The writer's source prose without the backslashes added only to protect Markdown. */
+function plainSource(md: string): string {
+  return md.replace(/(^|[^\\])\[((?:\\.|[^\x5d\\])*)\]\(([^)]*)\)/g, '$1$2').replace(/\\([\\*`[\]_~<&])/g, '$1');
+}
+
 /** Read one opened `.docx` archive. */
 export async function readDocxArchive(archive: ImportArchive, options: DocxOptions = {}): Promise<DocxResult> {
   const documentEntry = archive.entry('word/document.xml');
@@ -497,13 +519,13 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
       return;
     }
     if (heading !== null) {
-      const text = md.replace(/(^|[^\\])\[((?:\\.|[^\x5d\\])*)\]\(([^)]*)\)/g, '$1$2').replace(/\\([\\*`[\]_~<&])/g, '$1');
+      const text = plainSource(md);
       push({ kind: 'heading', level: heading, text, md: `${'#'.repeat(heading)} ${md}`, src: withEmpty });
       return;
     }
     const safe = md.trim() === '#' ? md : escapeLineStarts(md);
     const body = list !== null ? `${list}${safe}` : quote ? `> ${safe}` : safe;
-    push({ kind: 'para', md: body, text: md, src: withEmpty });
+    push({ kind: 'para', md: body, text: plainSource(md), src: withEmpty });
   };
 
   const table = (element: XmlElement): void => {
@@ -514,7 +536,7 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
       const md = cells.filter((cell) => cell !== '').join(' — ');
       if (md !== '') {
         const safe = escapeLineStarts(md);
-        push({ kind: 'para', md: safe, text: md, src: { ...(state.options.unit === undefined ? {} : { sourceUnit: state.options.unit }) } });
+        push({ kind: 'para', md: safe, text: plainSource(md), src: { ...(state.options.unit === undefined ? {} : { sourceUnit: state.options.unit }) } });
       }
     }
   };
