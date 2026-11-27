@@ -7,7 +7,7 @@ const path = 'docs/a.md';
 const change = { path, bytes: new Uint8Array([1]), base: 1, version: 2, represented: true };
 const conflict: HostedReplay = { kind: 'conflict', versions: new Map([[path, 2]]) };
 
-async function target(pending: readonly string[] = [], durable = true) {
+async function target(pending: readonly string[] = [], durable = true, beforeExplicitSend?: () => Promise<boolean>) {
   const held = new Set(pending);
   const deferred = new Set<string>();
   const send = vi.fn<HostedQueuePort['send']>(async () => ({ kind: 'accepted', changes: [change] }));
@@ -30,7 +30,7 @@ async function target(pending: readonly string[] = [], durable = true) {
   const saving = new HostedTarget('p_lighthouse', {} as never, queue, async () => ({
     prepare: async () => ({ changes: await changes(), staged: () => undefined }),
     accepted,
-  }));
+  }), beforeExplicitSend);
   await saving.rememberOpened(state, {});
   return { saving, accepted, changes, send };
 }
@@ -42,6 +42,7 @@ it('commits on the browser save landing, not on every status it passes through',
   saving.attach({
     state,
     assets: async () => ({}),
+    saved: async () => {},
     persistence: {
       subscribe: (next) => { listener = next; return () => {}; },
       getStatus: () => status,
@@ -52,6 +53,46 @@ it('commits on the browser save landing, not on every status it passes through',
   expect(send).toHaveBeenCalledExactlyOnceWith(false, undefined);
   expect(accepted).toHaveBeenCalledExactlyOnceWith([change]);
   expect(saving.state()).toEqual({ kind: 'idle' });
+});
+
+it('flushes the editor before deciding if its frame can leave and keeps a memory-only queue', async () => {
+  const { saving, send } = await target([], false);
+  send.mockResolvedValueOnce({ kind: 'unavailable' });
+  saving.attach({
+    state,
+    assets: async () => ({}),
+    persistence: { subscribe: () => () => {}, getStatus: () => 'idle' },
+    saved: vi.fn<() => Promise<void>>().mockImplementationOnce(async () => { void saving.save(state); }).mockResolvedValue(undefined),
+  });
+  expect(await saving.canLeave()).toBe(false);
+  expect(saving.state()).toEqual({ kind: 'unsaved', paths: [path], persisted: false });
+  expect(await saving.sendQueued()).toEqual({ kind: 'stale' });
+  expect(await saving.canLeave()).toBe(true);
+});
+
+it('allows frame teardown with a durable queue and refuses when the local save fails', async () => {
+  const { saving, send } = await target([path]);
+  expect(await saving.canLeave()).toBe(true);
+  saving.attach({
+    state,
+    assets: async () => ({}),
+    persistence: { subscribe: () => () => {}, getStatus: () => 'idle' },
+    saved: async () => { throw new Error('local save failed'); },
+  });
+  expect(await saving.canLeave()).toBe(false);
+  expect(send).not.toHaveBeenCalled();
+});
+
+it('checks an expired lease only on explicit send and holds the queue if another device is editing', async () => {
+  const renew = vi.fn<() => Promise<boolean>>().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+  const { saving, send } = await target([path], true, renew);
+  await saving.save(state);
+  expect(renew).not.toHaveBeenCalled();
+  expect(await saving.sendQueued()).toEqual({ kind: 'unsaved', paths: [path], persisted: true });
+  expect(send).not.toHaveBeenCalled();
+  expect(await saving.sendQueued()).toEqual({ kind: 'stale' });
+  expect(renew.mock.invocationCallOrder[1]).toBeLessThan(send.mock.invocationCallOrder[0]!);
+  expect(send).toHaveBeenCalledExactlyOnceWith(true, undefined);
 });
 
 it('a no-op save does not write anything', async () => {

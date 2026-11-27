@@ -8,12 +8,15 @@
 
 /* lingui-set comment="Interpolated values: files and waitingFiles are lists of document titles or file names." */
 import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { Button } from '@ui-sdk/react/button';
 import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
 import { isolate } from '@caotang/i18n';
 import { hostedTargetFor } from '../app/hosted-target-registry.js';
 import type { HostedSaveState } from '../app/hosted-target.js';
 import type { ProjectSession } from '../app/session.js';
+import { hostedProject } from '../app/studio-host.js';
 import { ChoiceDialog } from './shared.js';
 
 const IDLE: HostedSaveState = { kind: 'idle' };
@@ -53,8 +56,12 @@ export function HostedSaveNotice({
   const state = useSyncExternalStore(subscribe, () => target?.state() ?? IDLE);
   // A question the writer put off stays off for those paths: a new conflict asks anew.
   const [putOff, setPutOff] = useState('');
+  const [exportFailed, setExportFailed] = useState(false);
+  const desktop = hostedProject()?.desktopRecovery;
+  const memoryWarning = desktop?.warning ?? t`Closing this tab loses these changes.`;
+  const needsRecovery = state.stageFailed || state.waiting?.persisted === false || ('persisted' in state && !state.persisted);
   if (localSaving !== undefined) {
-    if (target === null || (state.kind === 'stale' && !state.stageFailed && state.waiting === undefined)) return null;
+    if (target === null || (desktop && needsRecovery) || (state.kind === 'stale' && !state.stageFailed && state.waiting === undefined)) return null;
     const pending = state.kind === 'unsaved' || state.waiting !== undefined;
     const saving = state.kind === 'saving' || (state.kind === 'idle' && localSaving);
     const status = state.kind === 'conflict' ? 'conflict' : state.stageFailed || pending ? 'failed' : saving ? 'saving' : 'saved';
@@ -62,24 +69,35 @@ export function HostedSaveNotice({
     return <span className={`save-state is-${status}`} role={status === 'saved' ? 'status' : undefined} data-testid="save-state" data-state={status}>
       {state.stageFailed ? t`Your latest edits aren’t ready to send.`
         : state.kind === 'conflict' ? t`Another device saved these first`
-        : pending ? persisted ? t`Saved here, not to your account.` : t`Closing this tab loses these changes.`
+        : pending ? persisted ? t`Saved here, not to your account.` : memoryWarning
         : saving ? t`Saving…`
         : t`Your account has the changes.`}
     </span>;
   }
   if (target === null || state.kind === 'idle' || state.kind === 'saving') return null;
-  if (state.stageFailed) return <p className="status-line notice-row" role="alert">
+  const key = state.kind === 'conflict' ? state.paths.join('|') : '';
+  const postponed = state.kind === 'conflict' && putOff === key;
+  const recovery = desktop && needsRecovery ? createPortal(<>
+    <p className="account-recovery-warning" role="status">{memoryWarning}</p>
+    <Button className="button" disabled={state.stageFailed || (state.kind !== 'unsaved' && !postponed)} onClick={() => {
+      if (postponed) setPutOff('');
+      else void target.sendQueued();
+    }}>{desktop.send}</Button>
+    <Button className="button" onClick={() => void target.exportCopy().then((ok) => setExportFailed(!ok))}>{desktop.exportBundle}</Button>
+    {exportFailed && <p role="alert">{desktop.exportFailed}</p>}
+  </>, desktop.mount) : null;
+  if (state.stageFailed) return <>{recovery}<p className="status-line notice-row" role="alert">
     <span><Trans>Your latest edits aren’t ready to send.</Trans></span>
     {state.readFailed === 'save' && <span><Trans>Save your edits before reading the account copy.</Trans></span>}
-    {state.kind !== 'stale' && state.paths.length > 0 && !state.persisted
-      ? <span><Trans>Closing this tab loses these changes.</Trans></span>
+    {!recovery && state.kind !== 'stale' && state.paths.length > 0 && !state.persisted
+      ? <span>{memoryWarning}</span>
       : null}
     <button type="button" className="button" onClick={() => { void target.save(session.state); }}><Trans>Try again</Trans></button>
-  </p>;
+  </p></>;
   const pending = state.kind === 'stale' || state.persisted
     ? t`Saved here, not to your account.`
-    : t`Closing this tab loses these changes.`;
-  const read = <button type="button" className="button" onClick={() => onReopenAccount?.()}><Trans>Read them</Trans></button>;
+    : memoryWarning;
+  const read = <button type="button" className="button" onClick={onReopenAccount}><Trans>Read them</Trans></button>;
   const waitingFiles = state.waiting?.paths.map((path) => isolate(nameOf(path, session))).join(', ');
   const waitingText = <Trans>Read before sending these files: {waitingFiles}</Trans>;
   const waiting = state.waiting === undefined ? null : (
@@ -87,49 +105,41 @@ export function HostedSaveNotice({
       <span>{waitingText}</span>
       {state.waiting.persisted
         ? read
-        : state.readFailed !== 'queue' && <span><Trans>Closing this tab loses these changes.</Trans></span>}
+        : !recovery && state.readFailed !== 'queue' && <span>{memoryWarning}</span>}
     </p>
   );
-  const readFailed = state.readFailed ? <p className="status-line notice-row" role="alert">
+  const readFailed = state.readFailed && !(recovery && state.readFailed === 'queue') ? <p className="status-line notice-row" role="alert">
     {state.readFailed === 'save' ? <Trans>Save your edits before reading the account copy.</Trans>
-      : <Trans>Closing this tab loses these changes.</Trans>}
+      : memoryWarning}
   </p> : null;
 
-  if (state.kind === 'unsaved') {
+  if (state.kind === 'unsaved' || postponed) {
+    if (recovery) return <>{recovery}{waiting}{readFailed}</>;
     // Nothing here is sent on its own: the account gets these words when the writer says so. What the writer can act on is whether a copy
     // survived a reload — a full or blocked store leaves them in this tab, and saying "on this device" would be the sentence that costs
     // them the work.
     return <><p className="status-line notice-row" role="status">
       {state.readFailed !== 'queue' && <span>{pending}</span>}
-      <button type="button" className="button" onClick={() => {
+      {state.kind === 'unsaved' ? <button type="button" className="button" onClick={() => {
         void target.sendQueued();
       }}>
         <Trans>Send them to your account</Trans>
-      </button>
+      </button> : <button type="button" className="button is-quiet" onClick={() => setPutOff('')}>
+        <Trans>Ask me again</Trans>
+      </button>}
       {state.readOffered && waiting === null ? read : null}
     </p>{waiting}{readFailed}</>;
   }
 
   if (state.kind === 'stale') {
-    return <>{waiting ?? <p className="status-line notice-row" role="status">
+    return <>{recovery}{waiting ?? <p className="status-line notice-row" role="status">
       <span><Trans>Your account has the changes.</Trans></span>
       {state.readFailed !== 'queue' && read}
     </p>}{readFailed}</>;
   }
 
-  const key = state.paths.join('|');
-  if (putOff === key) {
-    return <><p className="status-line notice-row" role="status">
-      {state.readFailed !== 'queue' && <span>{pending}</span>}
-      <button type="button" className="button is-quiet" onClick={() => setPutOff('')}>
-        <Trans>Ask me again</Trans>
-      </button>
-      {state.readOffered && waiting === null ? read : null}
-    </p>{waiting}{readFailed}</>;
-  }
-
   const files = state.paths.map((path) => isolate(nameOf(path, session))).join(', ');
-  return <ChoiceDialog
+  return <>{recovery}<ChoiceDialog
     open
     title={t`Another device saved these first`}
     choices={[
@@ -156,9 +166,9 @@ export function HostedSaveNotice({
     <p>
       <Trans>This replaces the account files.</Trans>
     </p>
-    {state.persisted ? null : <p>{pending}</p>}
+    {state.persisted || recovery ? null : <p>{pending}</p>}
     {state.waiting && <p>{waitingText}</p>}
-  </ChoiceDialog>;
+  </ChoiceDialog></>;
 }
 
 export default HostedSaveNotice;

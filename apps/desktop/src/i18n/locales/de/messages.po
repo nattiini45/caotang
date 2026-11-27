@@ -7646,9 +7646,6 @@ msgid "Close window"
 msgstr "Fenster schließen"
 
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
-#. Interpolated values: files and waitingFiles are lists of document titles or file names.
-#. Interpolated values: files and waitingFiles are lists of document titles or file names.
-#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Closing this tab loses these changes."
 msgstr "Wenn Sie diesen Tab schließen, gehen diese Änderungen verloren."
