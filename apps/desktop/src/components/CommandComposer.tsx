@@ -81,12 +81,24 @@ export function CommandComposer({ value, onChange, onRun, placeholder, disabled,
     };
     list.showPopover?.();
     place();
+    const companion = input.closest('.modern-companion');
+    let frame: number | undefined;
+    if (companion !== null) {
+      const followMorph = (): void => {
+        place();
+        if (companion.getAnimations().some((animation) => animation.pending || animation.playState === 'running')) {
+          frame = requestAnimationFrame(followMorph);
+        }
+      };
+      frame = requestAnimationFrame(followMorph);
+    }
     const footer = input.closest('.agent-foot');
     const observer = footer === null ? null : new ResizeObserver(place);
     if (footer !== null) observer?.observe(footer);
     window.addEventListener('resize', place);
     window.addEventListener('scroll', place, true);
     return () => {
+      if (frame !== undefined) cancelAnimationFrame(frame);
       if (list.isConnected) list.hidePopover?.();
       observer?.disconnect();
       window.removeEventListener('resize', place);

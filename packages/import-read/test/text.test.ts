@@ -115,8 +115,9 @@ describe('decodePlainText reads every common encoding through the store detectio
 
   it('refuses 32 MiB of one-character lines by its line count, before splitting it or building a block', () => {
     // 16 million lines that fit under the byte cap: the case where memory, not bytes, is what runs out.
-    const bytes = new Uint8Array(MAX_TEXT_BYTES).fill(0x0a);
-    for (let i = 0; i < bytes.length; i += 2) bytes[i] = 0x61;
+    const bytes = new Uint8Array(MAX_TEXT_BYTES);
+    bytes.set([0x61, 0x0a]);
+    for (let prefix = 2; prefix < bytes.length; prefix *= 2) bytes.copyWithin(prefix, 0, prefix);
     const started = performance.now();
     expect(readPlainText(bytes)).toEqual({ status: 'too-many-lines', lines: MAX_TEXT_LINES + 1, limit: MAX_TEXT_LINES });
     expect(decodePlainText(bytes, { encoding: 'windows-1252' })).toMatchObject({ status: 'too-many-lines' });

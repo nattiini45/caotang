@@ -230,6 +230,7 @@ jobs:
       - name: "Lint, typecheck and every unit suite, less sync-server account-mode, storage, server, quota, accounts, project-lease and project-records suites (each case runs through a Miniflare Worker runtime: #815, #820)"
         env:
           CAOTANG_SKIP_WORKER_SUITES: '1'
+          CAOTANG_VERIFY_WORKERS: '2'
         run: pnpm verify
 
       # No pull request carries this job, so a red run has nobody reading it: one issue named for the state, updated in place

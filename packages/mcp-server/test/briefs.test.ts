@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { Client as LegacyClient, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import type { Client } from '@modelcontextprotocol/client';
-import { addDocument, addFolder, createEmptyManifest, createProjectState, getBody, readProject, writeProject, type PermissionRule } from '@caotang/store';
+import { addDocument, addFolder, createEmptyManifest, createProjectState, getBody, writeProject, type PermissionRule } from '@caotang/store';
 
 import { NodeArtifactFs } from '../src/index.js';
 import {
@@ -66,12 +66,10 @@ interface Brief {
 /** A writer's project with an empty page added, so every mode of a draft has a document to run on. */
 async function writerRoot(label: string): Promise<string> {
   const root = tempDir(label);
-  await seedWriting(root);
-  const fs = new NodeArtifactFs(root);
-  const { state } = await readProject(fs, { now: OPENED });
-  addDocument(state, { parentId: 'manuscript', title: 'Blank Page', body: '', now: OPENED, id: BLANK });
-  addDocument(state, { parentId: 'manuscript', title: 'Second Page', body: '', now: OPENED, id: BLANK_TWO });
-  await writeProject(fs, state, { now: OPENED });
+  await seedWriting(root, (state) => {
+    addDocument(state, { parentId: 'manuscript', title: 'Blank Page', body: '', now: OPENED, id: BLANK });
+    addDocument(state, { parentId: 'manuscript', title: 'Second Page', body: '', now: OPENED, id: BLANK_TWO });
+  });
   writeFileSync(join(root, 'CAOTANG.md'), `British spelling.\n${RULE}\n`);
   return root;
 }

@@ -44,6 +44,7 @@ let os: OsIntegration | null = null;
 const early: string[] = [];
 
 async function serveBuild(): Promise<void> {
+  void globalThis.Request;
   const root = await realpath(BUILD);
   protocol.handle('app', async (request) => {
     const url = new URL(request.url);
