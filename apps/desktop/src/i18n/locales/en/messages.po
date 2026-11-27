@@ -23079,6 +23079,11 @@ msgstr "The AI suggests {encoding}."
 msgid "The AI’s answer did not name one of the encodings."
 msgstr "The AI’s answer did not name one of the encodings."
 
+#. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
+#: apps/desktop/src/import-preview/table-source.ts
+msgid "The aliases {value} in row {line} are left out; an entry keeps at most ten."
+msgstr "The aliases {value} in row {line} are left out; an entry keeps at most ten."
+
 #: apps/desktop/src/app/task-consents.ts
 msgid "The allowance could not be saved on this machine, so the task stays offered when it is due. Try again."
 msgstr "The allowance could not be saved on this machine, so the task stays offered when it is due. Try again."
@@ -25528,8 +25533,8 @@ msgstr "The turn stopped unexpectedly: {error}"
 
 #. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
 #: apps/desktop/src/import-preview/table-source.ts
-msgid "The type {value} in row {line} is kept as a keyword, and the entry is imported as Other."
-msgstr "The type {value} in row {line} is kept as a keyword, and the entry is imported as Other."
+msgid "The type {value} in row {line} is kept as a keyword. Choose what type the entry becomes above."
+msgstr "The type {value} in row {line} is kept as a keyword. Choose what type the entry becomes above."
 
 #. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx

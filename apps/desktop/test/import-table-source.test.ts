@@ -49,10 +49,10 @@ async function open(bytes: Uint8Array, fileName = 'table.csv') {
   return opened.source;
 }
 
-function commitOf(plan: PreviewPlan, source: Awaited<ReturnType<typeof open>>, codexAnswers: CommitInput["codexAnswers"] = {}) {
+function commitOf(plan: PreviewPlan, source: Awaited<ReturnType<typeof open>>, codexAnswers: CommitInput["codexAnswers"] = {}, edits: CommitInput["edits"] = NO_EDITS) {
   const input: CommitInput = {
     plan,
-    edits: NO_EDITS,
+    edits,
     destination: 'manuscript',
     mapping: {},
     statuses: [],
@@ -100,6 +100,17 @@ describe('the CSV/TSV preview', () => {
     expect(commit.params.codex?.pages).toHaveLength(1);
   });
 
+
+  it('words an unknown type as a keyword without contradicting the chosen mapping', async () => {
+    const source = await open(bytesOf('Name,Type\nAda,Vampire\n'));
+    const settings = initialSettings(source.chips(), source.options());
+    await source.prepare?.(settings, new AbortController().signal);
+    const plan = source.plan(settings, NO_OVERRIDES);
+    const warning = plan.losses.map((loss) => loss.message).join('\n');
+    expect(warning).toContain('kept as a keyword');
+    expect(warning).not.toContain('imported as Other');
+  });
+
   it('reads UTF-16LE text and round-trips the timeline export into scene declarations', async () => {
     const csv = [
       'reading index,part,title,folder path,day,duration days,end day,day label,mode,pov,expected present,after,threads,open findings,picture ids,picture alt',
@@ -121,11 +132,12 @@ describe('the CSV/TSV preview', () => {
     expect(chapter?.title).toBe('Chapter 1');
     const first = chapter?.children?.[0];
     expect(first?.sceneMeta).toMatchObject({ dayOffset: -14, durationDays: 2, pov: 'Ada', expectedPresent: ['Ada', 'Bob'], mainStory: true });
-    expect(first?.sceneMeta?.threads?.[0]?.payoff).toMatch(/^pending:import:/);
+    expect(first?.sceneMeta?.threads?.[0]?.payoff).toMatch(/^pending-node:scene-/);
 
     const commit = commitOf(plan, source, Object.fromEntries((source.codexRows?.() ?? []).map((row) => [row.id, { action: 'skip' as const }])));
     const scene = commit.params.nodes.find((node) => node.title === 'Opening');
     expect(scene?.sceneMeta).toMatchObject({ dayOffset: -14, durationDays: 2 });
+    expect(scene?.sceneMeta?.threads?.[0]?.payoff).toMatch(/^pending:import:\d+$/);
     const validated = COMMAND_REGISTRY['binder.importTree'].descriptor.validate({ ...commit.params, pictures: [] }, project(true) as never);
     expect(validated.ok, validated.ok ? '' : validated.error.message).toBe(true);
     if (validated.ok) {
@@ -136,6 +148,51 @@ describe('the CSV/TSV preview', () => {
   });
 
 
+
+
+
+  it('leaves scene metadata off rows that declare none, so a project without coherence can import them', async () => {
+    const source = await open(bytesOf('Title,Body\nOnly scene,Text\n'));
+    const initial = initialSettings(source.chips(), source.options());
+    const settings = settingsWith(initial, { 'table-mode': 'timeline' });
+    await source.prepare?.(settings, new AbortController().signal);
+    const plan = source.plan(settings, NO_OVERRIDES);
+    const scene = plan.tree[0]?.children?.[0];
+    expect(scene?.sceneMeta).toBeUndefined();
+    const commit = commitOf(plan, source);
+    const { coherence: _coherence, ...withoutCoherence } = project(false);
+    const validated = COMMAND_REGISTRY['binder.importTree'].descriptor.validate({ ...commit.params, pictures: [] }, withoutCoherence as never);
+    expect(validated.ok, validated.ok ? '' : validated.error.message).toBe(true);
+  });
+
+  it('links scene declarations to a renamed imported codex row rather than the colliding held entry', async () => {
+    const source = await open(bytesOf('Title,Start,POV,Body\nFirst,0,Ada,A\nPayoff,1,,B\n'));
+    const initial = initialSettings(source.chips(), source.options());
+    const settings = settingsWith(initial, { 'table-mode': 'timeline' });
+    await source.prepare?.(settings, new AbortController().signal);
+    const plan = source.plan(settings, NO_OVERRIDES);
+    const row = source.codexRows?.().find((candidate) => candidate.name === 'Ada');
+    expect(row).toBeDefined();
+    const commit = commitOf(plan, source, { [row?.id ?? '']: { action: 'rename', name: 'Ada imported' } });
+    const scene = commit.params.nodes.find((node) => node.title === 'First');
+    expect(scene?.sceneMeta?.pov).toBe('Ada imported');
+    const validated = COMMAND_REGISTRY['binder.importTree'].descriptor.validate({ ...commit.params, pictures: [] }, project(true) as never);
+    expect(validated.ok, validated.ok ? '' : validated.error.message).toBe(true);
+    if (validated.ok) expect(validated.value.nodes.find((node) => node.title === 'First')?.sceneMeta?.pov).toBe('pending:import:codex:0');
+  });
+
+  it('keeps a thread payoff with its scene when another scene is excluded', async () => {
+    const csv = 'Title,Start,Arc,Body\nFirst,0,Quest,A\nMiddle,1,,B\nPayoff,2,,C\n';
+    const source = await open(bytesOf(csv));
+    const initial = initialSettings(source.chips(), source.options());
+    const settings = settingsWith(initial, { 'table-mode': 'timeline' });
+    await source.prepare?.(settings, new AbortController().signal);
+    const plan = source.plan(settings, NO_OVERRIDES);
+    const commit = commitOf(plan, source, {}, { ...NO_EDITS, excluded: ['scene-1'] });
+    const first = commit.params.nodes.find((node) => node.title === 'First');
+    const payoffIndex = Number(first?.sceneMeta?.threads?.[0]?.payoff.slice('pending:import:'.length));
+    expect(commit.params.nodes[payoffIndex]?.title).toBe('Payoff');
+  });
 
   it('reads the UTF-16 Unicode text fixture', async () => {
     const bytes = new Uint8Array(Buffer.from(readFileSync('packages/import-table/test/fixtures/unicode-text.txt.base64', 'utf8').trim(), 'base64'));

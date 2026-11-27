@@ -22,7 +22,7 @@
  */
 
 import type { CodexImportBatchEntry, CodexImportPage, CommandDescriptor, ValidationNode, ValidationSnapshot } from './command.js';
-import type { SceneMetaRecord } from './coherence.js';
+import { THREAD_NOTE_LIMIT, type SceneMetaRecord } from './coherence.js';
 import { codexImportBatch } from './descriptors-codex-import.js';
 import { CHAPTERLESS_DOCUMENT_REFUSAL, KEYWORD_CHARS_MAX, KEYWORDS_MAX, NOTES_MAX, SYNOPSIS_MAX } from './descriptors.js';
 import { ok, type CommandError, type PerOpFailure, type Result } from './result.js';
@@ -272,7 +272,7 @@ export const binderImportTree: CommandDescriptor<ImportTreeParams> = {
           const locations = sceneMeta['locations'];
           if (locations !== undefined && (!Array.isArray(locations) || locations.some((item) => typeof item !== 'string' || item.trim() === ''))) fail('locations must be a list of codex entry names or ids', 'sceneMeta.locations');
           const threads = sceneMeta['threads'];
-          if (threads !== undefined && (!Array.isArray(threads) || threads.some((thread) => !isRecord(thread) || typeof thread['id'] !== 'string' || thread['id'].trim() === '' || typeof thread['payoff'] !== 'string' || thread['payoff'].trim() === ''))) fail('threads must be {id, payoff, note?} records', 'sceneMeta.threads');
+          if (threads !== undefined && (!Array.isArray(threads) || threads.some((thread) => !isRecord(thread) || typeof thread['id'] !== 'string' || thread['id'].trim() === '' || typeof thread['payoff'] !== 'string' || thread['payoff'].trim() === '' || (thread['note'] !== undefined && (typeof thread['note'] !== 'string' || codePoints(thread['note'].trim()) > THREAD_NOTE_LIMIT))))) fail(`threads must be {id, payoff, note?} records, with a note of at most ${THREAD_NOTE_LIMIT} characters`, 'sceneMeta.threads');
         }
       }
 

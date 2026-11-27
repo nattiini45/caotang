@@ -156,10 +156,11 @@ function mappingLossSentence(code: string, row: number | undefined, column: stri
   const line = row ?? 0;
   if (code === 'bad-date') return t`A date could not be read in row ${{ line }}: ${{ value: value ?? '' }}. Choose the date format it uses.`;
   if (code === 'bad-number') return t`A number could not be read in row ${{ line }}: ${{ value: value ?? '' }}.`;
-  if (code === 'unknown-type') return t`The type ${{ value: value ?? '' }} in row ${{ line }} is kept as a keyword, and the entry is imported as Other.`;
+  if (code === 'unknown-type') return t`The type ${{ value: value ?? '' }} in row ${{ line }} is kept as a keyword. Choose what type the entry becomes above.`;
   if (code === 'kept-for-later') return t`${{ column: column ?? t`A column` }} in row ${{ line }} is kept in the entry's research page; this import does not map it further.`;
   if (code === 'image-file') return t`The image file ${{ value: value ?? '' }} in row ${{ line }} is named in the entry's research page; a standalone table import cannot read its image bytes.`;
   if (code === 'long-description') return t`A long description in row ${{ line }} is shown as an excerpt; its full text is kept in the research page.`;
+  if (code === 'aliases-truncated') return t`The aliases ${{ value: value ?? '' }} in row ${{ line }} are left out; an entry keeps at most ten.`;
   return t`A required value is missing in row ${{ line }}.`;
 }
 
@@ -372,6 +373,14 @@ export function tablePreviewSource(fileName: string, bytes: Uint8Array): TableIm
       const body = row.body || row.summary;
       const start = row.start === undefined ? undefined : row.start - (row.startAbsolute === true ? anchor : 0);
       words += body.split(/\s+/).filter(Boolean).length;
+      const sceneMeta: NonNullable<PreviewNode['sceneMeta']> = {
+        ...(row.pov === undefined ? {} : { pov: row.pov }),
+        ...(start === undefined ? {} : { dayOffset: start }),
+        ...(row.duration === undefined ? {} : { durationDays: row.duration }),
+        ...(row.participants.length === 0 ? {} : { expectedPresent: row.participants }),
+        ...(row.locations.length === 0 ? {} : { locations: row.locations }),
+        ...(row.part?.trim().toLowerCase() === 'prologue' || row.part?.trim().toLowerCase() === 'epilogue' ? { storyPart: row.part.trim().toLowerCase() as 'prologue' | 'epilogue' } : row.part?.trim().toLowerCase() === 'main' ? { mainStory: true } : {}),
+      };
       const scene: MutablePreviewNode = {
         id: `scene-${index}`,
         role: 'scene',
@@ -381,14 +390,7 @@ export function tablePreviewSource(fileName: string, bytes: Uint8Array): TableIm
         words: body.split(/\s+/).filter(Boolean).length,
         body,
         synopsis: row.summary,
-        sceneMeta: {
-          ...(row.pov === undefined ? {} : { pov: row.pov }),
-          ...(start === undefined ? {} : { dayOffset: start }),
-          ...(row.duration === undefined ? {} : { durationDays: row.duration }),
-          ...(row.participants.length === 0 ? {} : { expectedPresent: row.participants }),
-          ...(row.locations.length === 0 ? {} : { locations: row.locations }),
-          ...(row.part?.trim().toLowerCase() === 'prologue' || row.part?.trim().toLowerCase() === 'epilogue' ? { storyPart: row.part.trim().toLowerCase() as 'prologue' | 'epilogue' } : row.part?.trim().toLowerCase() === 'main' ? { mainStory: true } : {}),
-        },
+        ...(Object.keys(sceneMeta).length === 0 ? {} : { sceneMeta }),
       };
       scenes.push(scene);
       const marker = row.folder?.trim() ?? '';
@@ -409,18 +411,17 @@ export function tablePreviewSource(fileName: string, bytes: Uint8Array): TableIm
     };
     walk(roots);
     const documents = flat.filter((node) => node.role === 'scene');
-    const payoffIndex = flat.indexOf(documents[documents.length - 1] as MutablePreviewNode);
+    const fallback = documents[documents.length - 1] as MutablePreviewNode | undefined;
     const missingArcs = new Set<string>();
     for (const row of ordered) {
       if (row.arcs.length === 0) continue;
       const scene = scenes[ordered.indexOf(row)] as MutablePreviewNode;
-      const sceneIndex = flat.indexOf(scene);
-      const payoff = payoffIndex === sceneIndex && documents.length > 1 ? flat.indexOf(documents[0] as MutablePreviewNode) : payoffIndex;
-      if (payoff === sceneIndex || payoff < 0) {
+      const payoff = fallback === scene && documents.length > 1 ? documents[0] : fallback;
+      if (payoff === undefined || payoff === scene) {
         for (const arc of row.arcs) missingArcs.add(arc);
         continue;
       }
-      scene.sceneMeta = { ...(scene.sceneMeta ?? {}), threads: row.arcs.map((arc) => ({ id: arc, payoff: `pending:import:${payoff}`, note: t`Imported plotline` })) };
+      scene.sceneMeta = { ...(scene.sceneMeta ?? {}), threads: row.arcs.map((arc) => ({ id: arc, payoff: `pending-node:${payoff.id}`, note: t`Imported plotline` })) };
     }
     if (missingArcs.size > 0) losses.push({ message: t`A plotline needs a different scene as its payoff, so a one-scene import cannot keep it: ${{ value: [...missingArcs].join(', ') }}` });
     return { tree: roots, losses, scenes: scenes.length, words };

@@ -728,6 +728,35 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
 
   for (const node of tree) push(node, undefined, undefined);
 
+  // A renamed imported row is the entity a scene declaration means when it uses the row's source name.
+  const renamedCodex = new Map<string, string>();
+  for (const row of input.codexRows) {
+    const answer = input.codexAnswers[row.id];
+    if (answer?.action === 'rename' && answer.name.trim() !== '') renamedCodex.set(row.name.trim().toLowerCase(), answer.name.trim());
+  }
+  const codexRef = (value: string): string => renamedCodex.get(value.trim().toLowerCase()) ?? value;
+
+  // Stable preview-node payoff refs survive exclusions and reordering; only here do they become the node indexes
+  // `binder.importTree` validates. A target the writer excluded drops its thread rather than pointing at another scene.
+  for (const [nodeIndex, node] of nodes.entries()) {
+    const meta = node.sceneMeta;
+    if (meta === undefined) continue;
+    const threads = meta.threads?.flatMap((thread) => {
+      if (!thread.payoff.startsWith('pending-node:')) return [thread];
+      const target = indexOf.get(thread.payoff.slice('pending-node:'.length));
+      return target === undefined ? [] : [{ ...thread, payoff: `pending:import:${target}` }];
+    });
+    const sceneMeta = { ...meta };
+    if (sceneMeta.pov !== undefined) sceneMeta.pov = codexRef(sceneMeta.pov);
+    if (sceneMeta.expectedPresent !== undefined) sceneMeta.expectedPresent = sceneMeta.expectedPresent.map(codexRef);
+    if (sceneMeta.locations !== undefined) sceneMeta.locations = sceneMeta.locations.map(codexRef);
+    if (threads !== undefined) {
+      if (threads.length === 0) delete sceneMeta.threads;
+      else sceneMeta.threads = threads;
+    }
+    nodes[nodeIndex] = { ...node, sceneMeta };
+  }
+
   // The codex rows, by the writer's answers.
   const entries: ImportTreeCodexEntry[] = [];
   const pages: { title: string; body: string }[] = [];

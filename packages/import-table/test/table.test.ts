@@ -65,6 +65,14 @@ describe('mapCodexRows', () => {
     expect(mapped.losses.some((loss) => loss.code === 'unknown-type')).toBe(true);
   });
 
+  it('keeps only the first ten aliases and names the omitted ones', () => {
+    const aliases = Array.from({ length: 12 }, (_, index) => `A${index}`).join(';');
+    const mapped = mapCodexRows(['Name', 'Aliases'], [{ line: 2, cells: ['Ada', aliases] }], ['name', 'aliases']);
+    expect(mapped.rows[0]?.aliases).toHaveLength(10);
+    expect(mapped.rows[0]?.aliases).not.toContain('A10');
+    expect(mapped.losses).toEqual([expect.objectContaining({ code: 'aliases-truncated', row: 2, count: 2, value: 'A10; A11' })]);
+  });
+
   it('skips rows without the required name', () => {
     const mapped = mapCodexRows(['Name'], [{ line: 2, cells: [''] }], ['name']);
     expect(mapped.rows).toEqual([]);
@@ -92,6 +100,12 @@ describe('buildTimelineRows', () => {
     expect(mapped.rows[2]?.start).toBe(-5);
     expect(mapped.rows[0]?.startAbsolute).toBeUndefined();
     expect(mapped.rows[1]?.startAbsolute).toBe(true);
+  });
+
+  it('rejects an impossible calendar date instead of normalizing it', () => {
+    const mapped = buildTimelineRows(['Title', 'Start'], [{ line: 2, cells: ['A', '2024-02-31'] }], ['title', 'start'], { dateFormat: 'iso' });
+    expect(mapped.rows[0]?.start).toBeUndefined();
+    expect(mapped.losses).toEqual([expect.objectContaining({ code: 'bad-date', row: 2 })]);
   });
 
   it('never guesses ambiguous slash dates in ISO mode', () => {

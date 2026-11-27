@@ -124,6 +124,8 @@ describe('binder.importTree — the descriptor', () => {
     expect(missingCoherence.ok).toBe(false);
     const badDay = failuresOf(binderImportTree.validate({ nodes: [{ type: 'folder', title: 'C' }, { type: 'document', title: 'S', parent: 0, body: 'x', sceneMeta: { dayOffset: 1.5 } }] }, makeSnapshot({ coherence: { findings: [], sceneMeta: {} } })));
     expect(badDay[0]?.target).toBe('nodes[1].sceneMeta.dayOffset');
+    const badNotes = failuresOf(binderImportTree.validate({ nodes: [{ type: 'folder', title: 'C' }, { type: 'document', title: 'S', parent: 0, body: 'x', sceneMeta: { threads: [{ id: 'Object', payoff: 'pending:import:2', note: {} }, { id: 'Long', payoff: 'pending:import:2', note: 'x'.repeat(201) }] } }, { type: 'document', title: 'P', parent: 0, body: 'x' }] }, makeSnapshot({ coherence: { findings: [], sceneMeta: {} } })));
+    expect(badNotes[0]?.target).toBe('nodes[1].sceneMeta.threads');
   });
 
   it('takes pictures with unique import: refs and staging ids, and refuses a path as a ref', () => {

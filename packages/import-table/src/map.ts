@@ -9,7 +9,7 @@ export type ColumnRole = CodexColumnRole | TimelineColumnRole;
 export const TABLE_COLUMN_ROLES: readonly ColumnRole[] = ['name', 'aliases', 'type', 'description', 'long-text', 'tags', 'include-policy', 'image-file', 'relation', 'detail', 'scope', 'title', 'start', 'end', 'duration', 'order', 'part', 'folder', 'pov', 'participants', 'location', 'arc', 'summary', 'body', 'ignore'];
 
 export interface MappingLoss {
-  readonly code: 'missing-required' | 'bad-date' | 'bad-number' | 'unknown-type' | 'kept-for-later' | 'image-file' | 'long-description';
+  readonly code: 'missing-required' | 'bad-date' | 'bad-number' | 'unknown-type' | 'kept-for-later' | 'image-file' | 'long-description' | 'aliases-truncated';
   readonly row?: number;
   readonly column?: string;
   readonly value?: string;
@@ -54,6 +54,9 @@ export interface MappedTimelineRow {
 }
 
 export type TimelineDateFormat = 'iso' | 'dmy' | 'mdy' | 'ymd';
+
+/** The codex batch limit an import plans for; mirrored here so this pure reader stays dependency-free. */
+export const TABLE_CODEX_ALIASES_MAX = 10;
 
 const normal = (value: string): string => value.trim().toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
 
@@ -153,10 +156,14 @@ export function mapCodexRows(columns: readonly string[], rows: readonly TableCel
       }
     }
     if ((rowValues(row, roles, 'image-file')[0] ?? '') !== '') losses.push({ code: 'image-file', row: row.line, column: 'image-file', value: rowValues(row, roles, 'image-file')[0] });
+    const aliases = splitCellList(rowValues(row, roles, 'aliases').join(';'));
+    if (aliases.length > TABLE_CODEX_ALIASES_MAX) {
+      losses.push({ code: 'aliases-truncated', row: row.line, column: 'aliases', value: aliases.slice(TABLE_CODEX_ALIASES_MAX).join('; '), count: aliases.length - TABLE_CODEX_ALIASES_MAX });
+    }
     out.push({
       row: row.line,
       name,
-      aliases: splitCellList(rowValues(row, roles, 'aliases').join(';')),
+      aliases: aliases.slice(0, TABLE_CODEX_ALIASES_MAX),
       type: mappedType ?? 'other',
       ...(rawType === '' ? {} : { sourceType: rawType }),
       ...(rawType !== '' && mappedType === undefined ? { vendorType: rawType } : {}),
@@ -175,7 +182,10 @@ export function mapCodexRows(columns: readonly string[], rows: readonly TableCel
 const intValue = (value: string): number | undefined => (/^[+-]?\d+$/.test(value.trim()) ? Number(value.trim()) : undefined);
 const epochDay = (year: number, month: number, day: number): number | undefined => {
   if (month < 1 || month > 12 || day < 1 || day > 31) return undefined;
-  return Math.floor(Date.UTC(year, month - 1, day) / 86_400_000);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCFullYear(year);
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return undefined;
+  return Math.floor(date.getTime() / 86_400_000);
 };
 
 /** Parse ISO, explicit day/month/year or month/day/year, `Day N`, or a signed integer. Dates are never silently guessed. */

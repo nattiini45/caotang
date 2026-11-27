@@ -100,7 +100,7 @@ imported document by index as `node`), and `pictures`.
   the codex rows through `codex.importBatch`'s own validator against a projection in which a placeholder stands for each new
   document. Scene metadata is checked there too: codex names become existing entry ids or pending ids of entries in the same batch,
 payoff scenes become pending document ids, a thread may not be paid off by the scene that sets it up, and the coherence projection is
-required whenever any node carries metadata. The store's apply checks every body's round trip again before its first write.
+required whenever any node carries metadata. Before validation, a source's stable `pending-node:<preview id>` payoff ref is rewritten to the flattened node index after exclusions and reordering; an excluded payoff scene drops that thread. A scene reference that names a codex row the writer renamed uses the new name before validation. The store's apply checks every body's round trip again before its first write.
 - **What the apply does.** The pictures first (the only await): through the picture pipeline (dedup by hash, the GPS strip), each
   `](import:…` target becoming the picture's `../assets/` path (pictures.md D5), a codex citation in that body moved with it. Then,
   synchronously: the terms, the folders and documents, the codex pages and entries (`origin: 'import'`), scene metadata in the
