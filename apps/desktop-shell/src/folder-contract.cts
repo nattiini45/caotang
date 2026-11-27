@@ -46,7 +46,7 @@ export interface NativeFolderBridge {
  */
 
 export interface DesktopBridge {
-  readonly version: 6;
+  readonly version: 7;
   readonly folders: NativeFolderBridge;
   readonly os: NativeOsBridge;
   /** Provider and MCP calls made by the main process, where no CORS preflight applies. */

@@ -1,0 +1,20 @@
+@media (forced-colors: none) and (prefers-contrast: no-preference) {
+  :root, :where(*) {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-button {
+    display: none;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border-radius: var(--radius-pill, 999px);
+    background: var(--ink-soft);
+  }
+}

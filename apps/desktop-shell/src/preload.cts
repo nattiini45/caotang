@@ -8,7 +8,7 @@ import type { NativeCommand, NativeShellState, NativeWindowState, SaveRequest } 
 import type { IpcRendererEvent } from 'electron';
 
 const bridge: DesktopBridge = {
-  version: 6,
+  version: 7,
   folders: {
     pickFolder: (mode) => ipcRenderer.invoke('folders:pick', mode),
     recentFolders: () => ipcRenderer.invoke('folders:recent'),

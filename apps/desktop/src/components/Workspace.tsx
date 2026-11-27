@@ -121,6 +121,7 @@ import './project-dialogs.css';
 const PictureBoard = lazyView(() => import('../media/PictureBoard.js').then((module) => ({ default: module.PictureBoard })));
 const TimelineView = lazyView(() => import('./timeline/TimelineView.js').then((module) => ({ default: module.TimelineView })));
 const AgentPanel = lazyView(() => import('./AgentPanel.js').then((module) => ({ default: module.AgentPanel })));
+const WindowAgentPanel = lazyView(() => import('./shell/modern/window-agent.js'));
 const ExportDialog = lazyView(() => import('./ExportDialog.js').then((module) => ({ default: module.ExportDialog })));
 // The Findings and Activity tabs carry the coherence review and the agent's turn reports, which the first screen does not read.
 const FindingsPanel = lazyView(() => import('./FindingsPanel.js').then((module) => ({ default: module.FindingsPanel })));
@@ -1177,7 +1178,7 @@ export function Workspace({
     // with Close in its header. Only the shell that places it mounts it.
     agentWindow:
       agent === null || recurring === null ? null : (
-        <AgentPanel
+        <WindowAgentPanel
           session={session}
           agent={agent}
           recurring={recurring}

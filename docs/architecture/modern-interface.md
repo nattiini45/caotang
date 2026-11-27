@@ -351,6 +351,13 @@ A popover, sheet or window grows out of the control that opened it and shrinks b
 
 One pure function, `modernLayout({ viewport, view, sidebar, agent, info })` (M5), returns the page, ornament, sidebar and window rectangles, as the concept's `layout()` does, so geometry is unit-tested and the components only apply it. The page shrinks before anything overlaps it. From 1,280 px down the agent window and a docked Scene info overlap the page as sheets at the inline-end edge with a scrim, instead of pushing it.
 
+Above 1,920 CSS px, the page and companion increase their requested widths with the viewport, within caps, using the same
+geometry to place them and reserve their space. The companion keeps its header and prompt controls outside the transcript
+scroller. Expanded request context has a bounded scroll area; a goal form keeps its header and actions outside its field scroller. Persistent notices sit in the
+page's column, clear of docked panels. At 1,200–1,280 CSS px they leave room for the agent sheet at the inline end; at 960–1,199 CSS px
+in windows taller than 640 px the agent sheet starts below the notice row.
+When a docked panel would crowd the bottom ornament, the view buttons show icons with their existing names and tooltips.
+
 Built (M5, #306): `modernLayout` in `components/shell/modern/layout.ts` returns the page, the ornaments, the sidebar, the agent window and the docked Scene info in logical coordinates; the page is 780 px in Write, 1,120 px on the Board (and the timeline and pictures) and 1,000 px in the Codex; the sidebar (300 px) pushes; the agent window (400 px) and a docked Scene info (360 px) push above 1,280 px, stacked at the inline-end edge, and overlap as sheets at 1,280 px and below or when the page would drop below 480 px. Unit-tested at 960 to 1,920 px (`apps/desktop/test/modern-layout.test.ts`).
 
 ### 8.5 The binder tab bar and sidebar
@@ -401,7 +408,7 @@ Built (M9, #310): `app/palette-model.ts` and `Palette` (`components/shell/modern
 
 The header lets the lifecycle label wrap beside Stop and gives the resource-use line its own wrapping row. A writer can read the full usage and limit while a turn works or waits, without changing any agent behavior (#572).
 
-The conversation body keeps a 14rem minimum while the footer yields space: request-local context scrolls within its own bound of 30dvh or 16rem, whichever is smaller. While a goal is active, the conversation reserves 5.25rem so its approval stays readable; an interrupted goal can instead use that space for its recovery card. Opening the prompt preview or token accounting must not reduce the conversation to a clipped header; the 390px and 1280×900 checks retain at least three visible lines of a turn. Both disclosures start closed. Classic keeps its drawer arrangement and shares the bounded context block.
+When the composer shows request context, the conversation body reserves up to 14rem while the footer yields space. Request-local context scrolls within its own bound of 30dvh or 16rem, whichever is smaller. While a goal is active, the conversation reserves up to 5.25rem so its approval stays readable; an interrupted goal can instead use that space for its recovery card. Both reservations are capped at 27dvh so the prompt controls can still fit in short windows. Opening the prompt preview or token accounting must not reduce the conversation to a clipped header; the 390px and 1280×900 checks retain at least three visible lines of a turn. Both disclosures start closed. Classic keeps its drawer arrangement and shares the bounded context block.
 
 **Ask** and **Ctrl+J** (Cmd+J) open and close it; it morphs out of whatever opened it (Ask, a finding's **Fix with agent**, an empty state's agent request, which all go through `runAgentIntent`). The page moves over and recedes slightly (`scale(.985)`, not under reduced motion). It is an `aside` named "Agent", non-modal; it hosts `AgentPanel` with `placement="window"`. Escape inside it keeps Classic's meaning first: with the Intent box empty and a turn running, Escape stops the turn (`agent-stop`, which acts only when the turn is stoppable). Otherwise Escape closes the window and focus returns to **Ask**. A turn keeps running while the window is closed, and **Ask** shows that it is working.
 

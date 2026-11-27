@@ -5240,6 +5240,7 @@ msgid "Another agent action is active. Wait for it to finish, then try again."
 msgstr "Eine andere Agent-Aktion ist aktiv. Warten Sie, bis sie beendet ist, und versuchen Sie es erneut."
 
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Another device saved these first"
 msgstr "Ein anderes Gerät hat diese zuerst gespeichert"
@@ -6311,6 +6312,8 @@ msgid "British spelling. Past tense, close third person on Mara. No semicolons i
 msgstr "Britische Rechtschreibung. Präteritum, nahe dritte Person auf Mara. Keine Semikola im Dialog."
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
+#. Interpolated values: storageSentence.
+#: apps/desktop/src/components/BrowserStorageBanner.tsx
 #: apps/desktop/src/components/PictureNotices.tsx
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Browser storage"
@@ -6331,8 +6334,8 @@ msgstr "Browser-Speicher: persistent ✓"
 msgid "Browser storage: the browser has not said whether it keeps this project."
 msgstr "Browser-Speicher: Der Browser hat nicht gesagt, ob er dieses Projekt behält."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. Interpolated values: storageSentence.
+#: apps/desktop/src/components/BrowserStorageBanner.tsx
 msgid "Browsers may remove stored data when a device runs short of space. Asking the browser to keep it lowers that risk, and the browser has not granted it here. {storageSentence} A bundle is the copy that does not depend on the browser."
 msgstr "Browser können gespeicherte Daten entfernen, wenn ein Gerät wenig Speicher hat. Die Bitte an den Browser, sie zu behalten, senkt dieses Risiko, und der Browser hat sie hier nicht gewährt. {storageSentence} Ein Bundle ist die Kopie, die nicht vom Browser abhängt."
 
@@ -6433,6 +6436,7 @@ msgstr "Kampagnen-Übersicht"
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #. Interpolated values: calls
 #. Interpolated values: calls
@@ -6489,6 +6493,7 @@ msgstr "Kampagnen-Übersicht"
 #: apps/desktop/src/components/RecurringTasks.tsx
 #: apps/desktop/src/components/ReplayDialog.tsx
 #: apps/desktop/src/components/SaveAsMacro.tsx
+#: apps/desktop/src/components/Settings.tsx
 #: apps/desktop/src/components/shared.tsx
 #: apps/desktop/src/components/SkillsPanel.tsx
 #: apps/desktop/src/components/TargetQuickSet.tsx
@@ -6652,6 +6657,11 @@ msgstr "Caotang konnte die gewählte Datei nicht schreiben. Kompilieren Sie erne
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Caotang has no record of what this folder held when this project was last saved there, so it can’t tell which documents changed since. Saving writes this tab’s version over the folder’s documents. The folder’s version of each one it replaces is kept in <0>.caotang-backup</0> in the folder, and an older <1>caotang.json</1> is kept as a backup of its own, so if you need anything from it, copy it from there."
 msgstr "Caotang hat keine Aufzeichnung darüber, was dieser Ordner enthielt, als dieses Projekt zuletzt dort gespeichert wurde, daher kann es nicht sagen, welche Dokumente sich seitdem geändert haben. Beim Speichern wird die Version dieser Registerkarte über die Dokumente des Ordners geschrieben. Die Version des Ordners von jedem, den sie ersetzt, wird in <0>.caotang-backup</0> im Ordner aufbewahrt, und eine ältere <1>caotang.json</1> wird als eigene Sicherung aufbewahrt; wenn Sie also etwas davon brauchen, kopieren Sie es von dort."
+
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "Caotang is still running in the system tray. Use Open Caotang to bring it back, or Quit Caotang to stop it."
+msgstr "Caotang läuft im Infobereich weiter. Wählen Sie „Caotang öffnen“, um das Fenster wieder anzuzeigen, oder „Caotang beenden“, um die App zu schließen."
 
 #. Interpolated values: count
 #: apps/desktop/src/app/pending-journal.ts
@@ -7645,6 +7655,12 @@ msgstr "Schließen Sie dieses Projekt, bevor Sie über einen Link ein anderes ö
 msgid "Close window"
 msgstr "Fenster schließen"
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Closing the window quits Caotang unless you turn this on. If the system tray is available, scheduled tasks can still run there."
+msgstr "Beim Schließen des Fensters wird Caotang beendet, außer Sie aktivieren diese Einstellung. Wenn der Infobereich verfügbar ist, können geplante Aufgaben dort weiterlaufen."
+
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Closing this tab loses these changes."
@@ -8977,6 +8993,11 @@ msgstr "description: Sagen Sie in ein oder zwei Sätzen, wann der Agent diesen S
 msgid "Desktop app or hosted only"
 msgstr "Nur Desktop-App oder gehostet"
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Desktop window"
+msgstr "Desktop-Fenster"
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Detach {name}"
@@ -9187,12 +9208,13 @@ msgstr "Trennen"
 #. Background task and Inbox status. Counts describe drafts, calls, tokens or findings; titles and model labels are supplied text.
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#. Interpolated values: storageSentence.
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/BackgroundTasks.tsx
+#: apps/desktop/src/components/BrowserStorageBanner.tsx
 #: apps/desktop/src/components/EditorPane.tsx
 #: apps/desktop/src/components/Home.tsx
 #: apps/desktop/src/components/PictureNotices.tsx
@@ -10327,9 +10349,10 @@ msgid "Export {name} as a bundle"
 msgstr "{name} als Bundle exportieren"
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #. Interpolated values: count, files
+#. Interpolated values: storageSentence.
 #. Modern interface: Scene info, the inspector as a popover from the title capsule.
+#: apps/desktop/src/components/BrowserStorageBanner.tsx
 #: apps/desktop/src/components/FolderChangeStatus.tsx
 #: apps/desktop/src/components/shell/modern/scene-info.tsx
 #: apps/desktop/src/components/StaleTabNotice.tsx
@@ -12565,6 +12588,11 @@ msgstr "Einen Take aus der eigenen Generierung behalten"
 msgid "Keep agent traces for this tab"
 msgstr "Agentenabläufe für diesen Tab aufzeichnen"
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Keep Caotang in the system tray when I close the window"
+msgstr "Caotang beim Schließen des Fensters im Infobereich weiterlaufen lassen"
+
 #: apps/desktop/src/components/RunHistory.tsx
 msgid "Keep derived run-log copies in this project’s folder on this device."
 msgstr "Abgeleitete Durchlaufprotokolle im Projektordner auf diesem Gerät aufbewahren."
@@ -12913,8 +12941,8 @@ msgstr "Ebenen"
 msgid "Layout"
 msgstr "Layout"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. Interpolated values: storageSentence.
+#: apps/desktop/src/components/BrowserStorageBanner.tsx
 msgid "Learn why"
 msgstr "Grund erfahren"
 
@@ -18367,6 +18395,16 @@ msgstr "Muster entfernen"
 msgid "Remove picture"
 msgstr "Bild entfernen"
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Remove provider"
+msgstr "Anbieter entfernen"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Remove provider “{profile}”?"
+msgstr "Anbieter „{profile}“ entfernen?"
+
 #. Messages the writer typed while a turn runs. Interpolated values: number is the position in the queue.
 #: apps/desktop/src/components/AgentQueue.tsx
 msgid "Remove queued message {number}"
@@ -18461,8 +18499,8 @@ msgstr "“{name}” wurde aus diesem Browser entfernt. Ein von Ihnen exportiert
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
-msgid "Removed “{profile}”, and its key from this browser."
-msgstr "“{profile}” und dessen Schlüssel wurden aus diesem Browser entfernt."
+msgid "Removed “{profile}” and its stored key."
+msgstr "„{profile}“ und der gespeicherte Schlüssel wurden entfernt."
 
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #. Interpolated values: cost, prompt, completion, requestsTotal
@@ -19759,6 +19797,7 @@ msgid "Saved goal checks"
 msgstr "Gespeicherte Zielprüfungen"
 
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Saved here, not to your account."
 msgstr "Hier gespeichert, nicht in Ihrem Konto."
@@ -19966,9 +20005,11 @@ msgstr "Beim Speichern überschreibt die Version dieses Tabs sie. Die Version de
 #. Interpolated values: calls
 #. Interpolated values: calls
 #. Interpolated values: fieldCount, fields, name, parts, times, unsaid
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/app/integrity-model.ts
 #: apps/desktop/src/components/EditorPane.tsx
+#: apps/desktop/src/components/HostedSaveNotice.tsx
 #: apps/desktop/src/components/RecurringTasks.tsx
 #: apps/desktop/src/components/TaskAllowanceDialog.tsx
 #: apps/desktop/src/media/screenplay-model.ts
@@ -26004,6 +26045,12 @@ msgstr "Dies entfernt den Eintrag, {descendants, plural, one {das # Element} oth
 msgid "This removes the item, the {descendants, plural, one {# item} other {# items}} inside it. You can undo it right after with Ctrl+Z."
 msgstr "Dies entfernt den Eintrag und {descendants, plural, one {das # Element} other {die # Elemente}} darin. Sie können es direkt danach mit Strg+Z rückgängig machen."
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "This removes the provider profile and its stored key."
+msgstr "Dadurch werden das Anbieterprofil und der gespeicherte Schlüssel entfernt."
+
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "This replaces the account files."
@@ -28328,6 +28375,7 @@ msgid "You need to approve the rewrite yourself, even in Auto mode."
 msgstr "Geben Sie die Änderung selbst frei, auch im Auto-Modus."
 
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Your account has the changes."
 msgstr "Die Änderungen sind in Ihrem Konto."
@@ -28369,6 +28417,7 @@ msgstr "Ihre Anweisungen an den Agenten"
 msgid "Your later changes are in other parts of the project, so this can be taken back on its own and they stay. Restore takes them back too."
 msgstr "Ihre späteren Änderungen liegen in anderen Teilen des Projekts, daher kann dies allein zurückgenommen werden, und sie bleiben. „Wiederherstellen“ nimmt sie mit zurück."
 
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Your latest edits aren’t ready to send."
@@ -28445,13 +28494,13 @@ msgstr "Ihre Eingabe konnte nicht gespeichert werden, daher wurde diese Karte ni
 msgid "your typing in “{title}”"
 msgstr "Ihre Eingabe in „{title}“"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. Interpolated values: storageSentence.
+#: apps/desktop/src/components/BrowserStorageBanner.tsx
 msgid "Your words are kept in this browser, and the browser has not promised to keep them. A phone or tablet clears browser storage sooner than a computer when space runs short, and nothing syncs yet, so this copy is not your book’s only home. Export a backup often and keep it somewhere else."
 msgstr "Ihre Texte werden in diesem Browser gespeichert, und der Browser hat nicht zugesagt, sie zu behalten. Ein Telefon oder Tablet leert den Browserspeicher bei knappem Platz früher als ein Computer, und noch wird nichts synchronisiert, daher sollte diese Kopie nicht der einzige Ort Ihres Buchs sein. Exportieren Sie oft ein Backup und bewahren Sie es woanders auf."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. Interpolated values: storageSentence.
+#: apps/desktop/src/components/BrowserStorageBanner.tsx
 msgid "Your words are kept in this browser, and the browser has not promised to keep them. Export a backup to keep a copy you can open anywhere."
 msgstr "Ihre Wörter werden in diesem Browser aufbewahrt, und der Browser hat nicht zugesagt, sie zu behalten. Exportieren Sie ein Backup, um eine Kopie zu erhalten, die Sie überall öffnen können."
 

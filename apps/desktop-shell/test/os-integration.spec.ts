@@ -1,5 +1,6 @@
 import { mkdir, readFile, readdir, stat } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { _electron, expect, test } from '@playwright/test';
@@ -230,14 +231,85 @@ test('the Save dialog writes the bytes once, and cancelling writes nothing', asy
   }
 });
 
-test('closing the window leaves the studio running in the tray, so a scheduled run can still happen', async () => {
+test('closing the window quits after the studio is ready, unless the writer opts into the system tray', async () => {
+  const electron = await launch(test.info().outputPath('profile'));
+  try {
+    const page = await electron.firstWindow();
+    await expect(page.getByRole('textbox', { name: 'Project name' })).toBeVisible();
+    await expect.poll(async () => menuItems(electron).then((items) => items.length)).toBeGreaterThan(4);
+    const process = electron.process();
+    const closed = electron.waitForEvent('close');
+    void electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close()).catch(() => undefined);
+    await closed;
+    expect(process.exitCode).toBe(0);
+  } finally {
+    await closeShell(electron);
+  }
+});
+
+test('an opt-in tray shows a notice only on the first hide and keeps the renderer running', async () => {
   const profile = test.info().outputPath('profile');
   const electron = await launch(profile);
   try {
     const page = await electron.firstWindow();
     await expect(page.getByRole('textbox', { name: 'Project name' })).toBeVisible();
-    // The page's own publish is what makes the tray: until then closing would end the app, as it did before there was one.
-    await expect.poll(async () => menuItems(electron).then((items) => items.length)).toBeGreaterThan(4);
+    await electron.evaluate(({ dialog }) => {
+      const notices: string[] = [];
+      dialog.showMessageBoxSync = (_window, options?: Electron.MessageBoxSyncOptions) => {
+        if (options !== undefined) notices.push(options.message);
+        return 0;
+      };
+      Reflect.set(process, 'caotangTrayNotices', notices);
+    });
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    const settings = page.getByTestId('settings');
+    await settings.locator('[data-section="appearance"]').click();
+    expect(await settings.locator('.settings-body').evaluate((body) => ({
+      width: getComputedStyle(body, '::-webkit-scrollbar').width,
+      buttons: getComputedStyle(body, '::-webkit-scrollbar-button').display,
+    }))).toEqual({ width: '8px', buttons: 'none' });
+    const preference = settings.getByRole('checkbox', { name: /keep Caotang in the system tray/i });
+    await expect(preference).not.toBeChecked();
+    await page.evaluate(() => new Promise<void>((resolve, reject) => {
+      const open = indexedDB.open('caotang-app');
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const db = open.result;
+        const lock = db.transaction('kv', 'readwrite');
+        lock.oncomplete = () => db.close();
+        let held = true;
+        document.addEventListener('release-tray-settings', () => { held = false; }, { once: true });
+        const hold = () => {
+          const read = lock.objectStore('kv').get('settings');
+          read.onsuccess = () => {
+            if (held) hold();
+            resolve();
+          };
+        };
+        hold();
+      };
+    }));
+    await preference.click();
+    await expect(preference).toBeChecked();
+    await preference.click();
+    await expect(preference).not.toBeChecked();
+    await page.evaluate(() => document.dispatchEvent(new Event('release-tray-settings')));
+    await preference.click();
+    await expect(preference).toBeChecked();
+    await expect.poll(() => page.evaluate(() => new Promise<boolean>((resolve, reject) => {
+      const open = indexedDB.open('caotang-app');
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const db = open.result;
+        const read = db.transaction('kv').objectStore('kv').get('settings');
+        read.onerror = () => { db.close(); reject(read.error); };
+        read.onsuccess = () => {
+          db.close();
+          resolve(read.result?.value.closeToTray === true);
+        };
+      };
+    }))).toBe(true);
+    await settings.getByRole('button', { name: 'Close', exact: true }).click();
     await electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close());
     const survived = await electron.evaluate(({ BrowserWindow }) => {
       const window = BrowserWindow.getAllWindows()[0];
@@ -256,6 +328,11 @@ test('closing the window leaves the studio running in the tray, so a scheduled r
     expect(await page.evaluate(() => 2 + 2)).toBe(4);
     await electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.show());
     await expect.poll(async () => electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible())).toBe(true);
+    await electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close());
+    expect(await electron.evaluate(() => Reflect.get(process, 'caotangTrayNotices'))).toEqual([
+      'Caotang is still running in the system tray. Use Open Caotang to bring it back, or Quit Caotang to stop it.',
+    ]);
+    expect(JSON.parse(await readFile(join(profile, 'window.json'), 'utf8'))).toMatchObject({ trayNoticeSeen: true });
   } finally {
     await closeShell(electron);
   }

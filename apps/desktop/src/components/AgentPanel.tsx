@@ -547,6 +547,8 @@ export function AgentPanel({
   const oneTurnComposer = <div className="agent-one-turn-composer" hidden={goalShowing}>{intentForm}{inWindow && snapshot.activeGoalId !== null ? null : contextControls}</div>;
   // The drawer is a named region of its own; the window is inside Modern's `aside` "Agent", which names it.
   const Root = inWindow ? 'div' : 'section';
+  const interrupted = <InterruptedRuns agent={agent} runs={snapshot.interrupted} busy={snapshot.busy} onResume={() => (open ? undefined : onToggle())} />;
+
   return (
     <Root
       className={`agent${open ? ' is-open' : ''}${inWindow ? ' is-window' : ''}${goalShowing ? ' is-goal-setup' : ''}${snapshot.activeGoalId === null ? '' : ' is-goal-running'}`}
@@ -567,6 +569,16 @@ export function AgentPanel({
         <span className="agent-provider" data-testid="agent-provider">
           {named === null ? t`No provider` : t`Provider: ${{ provider: named }}`}
         </span>
+        {inWindow ? (
+          <Button
+            className="button agent-close"
+            data-testid="agent-close"
+            title={t`Close the agent (${{ shortcut: shortcutLabel('agent-toggle', keyboardLayout) }}). A running turn keeps working.`}
+            onClick={onClose}
+          >
+            {t({ message: 'Close', context: 'agent window' })}
+          </Button>
+        ) : null}
         {model === undefined || onPickModel === undefined || snapshot.providerIsDemo ? null : (
           <ChatModelPicker
             groups={model.groups}
@@ -625,31 +637,15 @@ export function AgentPanel({
         <p className="visually-hidden" role="status" aria-live="polite" data-testid="agent-announcement">
           {snapshot.announcement}
         </p>
-        {inWindow ? (
-          // Drawn as the ornaments' close stroke in companion.css (#363); the word stays its name.
-          <button
-            type="button"
-            className="button agent-close"
-            data-testid="agent-close"
-            title={t`Close the agent (${{ shortcut: shortcutLabel('agent-toggle', keyboardLayout) }}). A running turn keeps working.`}
-            onClick={onClose}
-          >
-            {t({ message: 'Close', context: 'agent window' })}
-          </button>
-        ) : null}
       </header>
 
-      {/* An unfinished run is shown with the drawer closed too: it is the first thing the writer has to decide after a reload. */}
-      <InterruptedRuns agent={agent} runs={snapshot.interrupted} busy={snapshot.busy} onResume={() => (open ? undefined : onToggle())} />
-
-      {/* A goal the project was left with waits for the same answer (agent-harness §7.2): it never resumes on its own. */}
+      {inWindow ? null : interrupted}
       <GoalRecovery agent={agent} goals={snapshot.goals.filter((goal) => !goalInConversation(goal))} unavailable={snapshot.goalUnavailable} activeGoalId={snapshot.activeGoalId} compact={!open} onResume={() => (open ? undefined : onToggle())} />
-
-      {/* A task that is due waits for the writer's answer, so its offer is shown with the drawer closed too. */}
-      <TaskOffers recurring={recurring} />
+      {inWindow ? null : <TaskOffers recurring={recurring} />}
 
       {open ? (
         <div key={snapshot.sessionId} id="agent-body" className="agent-body">
+          {inWindow ? <>{interrupted}<TaskOffers recurring={recurring} /></> : null}
           {snapshot.goalDraft !== null && goalEntryBlocked ? <p className="form-message" role="status" data-testid="goal-draft-deferred">{t`A goal or turn is active. Wait for it to finish.`}</p> : null}
           {goalComposer}
           {inWindow ? sessionUsage : <>{oneTurnComposer}{sessionUsage}</>}

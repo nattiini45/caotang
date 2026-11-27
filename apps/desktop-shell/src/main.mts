@@ -3,7 +3,7 @@ import { realpath } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { app, BrowserWindow, net, protocol, screen, session } from 'electron';
+import { app, BrowserWindow, dialog, net, protocol, screen, session } from 'electron';
 
 import { ACCOUNT_ORIGIN, registerAccountWindow } from './account-window.mjs';
 import { registerEgressIpc } from './egress.mjs';
@@ -85,7 +85,7 @@ async function serveBuild(): Promise<void> {
 async function openWindow(): Promise<void> {
   const statePath = join(app.getPath('userData'), 'window.json');
   const { width: availableWidth, height: availableHeight } = screen.getPrimaryDisplay().workAreaSize;
-  let state: { width?: unknown; height?: unknown; maximized?: unknown };
+  let state: { width?: unknown; height?: unknown; maximized?: unknown; trayNoticeSeen?: unknown };
   try {
     const saved: unknown = JSON.parse(readFileSync(statePath, 'utf8'));
     state = saved && typeof saved === 'object' ? saved : {};
@@ -109,6 +109,7 @@ async function openWindow(): Promise<void> {
     },
   });
   mainWindow = window;
+  let trayNoticeSeen = state.trayNoticeSeen === true;
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-frame-navigate', (event) => event.preventDefault());
   window.webContents.on('will-redirect', (event) => event.preventDefault());
@@ -117,18 +118,21 @@ async function openWindow(): Promise<void> {
     os?.setWindowState('visible');
   });
   window.on('close', (event) => {
+    const trayNotice = quitting ? undefined : os?.trayNotice();
+    if (trayNotice !== undefined && !trayNoticeSeen) {
+      dialog.showMessageBoxSync(window, { type: 'info', title: app.name, message: trayNotice });
+      trayNoticeSeen = true;
+    }
     const { width, height } = window.getNormalBounds();
     try {
-      writeFileSync(statePath, JSON.stringify({ width, height, maximized: window.isMaximized() }));
+      writeFileSync(statePath, JSON.stringify({ width, height, maximized: window.isMaximized(), trayNoticeSeen }));
     } catch (error) {
       console.warn('Could not save window size.', error);
     }
-    if (quitting || os === null || !os.staysInTray()) return;
-    // Closing leaves the studio running, so a scheduled task run can still happen and the tray can bring the window back. Quit is
-    // the tray's own item, and it says so.
+    if (trayNotice === undefined) return;
     event.preventDefault();
     window.hide();
-    os.setWindowState('hidden-to-tray');
+    os?.setWindowState('hidden-to-tray');
   });
   window.on('closed', () => {
     if (mainWindow === window) mainWindow = null;
@@ -243,7 +247,7 @@ if (app.commandLine.hasSwitch('no-sandbox')) {
     deliverAll(argv.slice(1));
   });
   app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') app.quit();
+    app.quit();
   });
   void app.whenReady().then(start).catch(fail);
 }

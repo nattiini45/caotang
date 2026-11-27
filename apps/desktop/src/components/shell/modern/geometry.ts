@@ -18,6 +18,7 @@ export interface StageGeometry {
   readonly areaStart?: number;
   /** Room taken at the inline-end edge (the companion window, a docked Scene info). Default 0. */
   readonly areaEnd?: number;
+  readonly companionWidth?: number;
   /** From the stage's inline-end edge to a docked Scene info's: the gutter, or past the open agent window, so the two stack. Default the gutter. */
   readonly infoEnd?: number;
 }
@@ -28,6 +29,7 @@ const PROPERTIES: Readonly<Record<keyof StageGeometry, string>> = {
   pageBottom: '--page-bottom',
   areaStart: '--area-start',
   areaEnd: '--area-end',
+  companionWidth: '--companion-w',
   infoEnd: '--info-end',
 };
 
@@ -41,4 +43,3 @@ export function geometryProperties(geometry: StageGeometry | undefined): CSSProp
   }
   return Object.keys(style).length === 0 ? undefined : (style as CSSProperties);
 }
-

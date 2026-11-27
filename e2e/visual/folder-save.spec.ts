@@ -34,6 +34,7 @@ for (const locale of ['en', 'de'] as const) {
         await page.getByRole('menuitem', { name: locale === 'de' ? 'In Ordner speichern' : 'Save to folder', exact: true }).click();
         await expect(page.getByTestId('modern-more-popover')).toBeHidden();
       } else {
+        await expect(page.getByTestId('agent-mode')).toBeVisible();
         await page.getByRole('button', { name: locale === 'de' ? 'In Ordner speichern' : 'Save to folder', exact: true }).click();
       }
       await releaseFolderPicker(page);

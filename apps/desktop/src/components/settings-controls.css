@@ -1,0 +1,75 @@
+.provider-removal {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  inline-size: min(460px, calc(100dvw - 32px));
+  block-size: fit-content;
+  max-block-size: calc(100dvh - 32px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  overflow-wrap: anywhere;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--raised);
+  color: var(--ink);
+  box-shadow: var(--elev-3);
+}
+
+.provider-removal::backdrop {
+  background: var(--mat-veil, rgba(20, 19, 17, 0.35));
+}
+
+:root[data-shell='modern'] .provider-removal {
+  border-color: var(--mat-sheet-rim);
+  border-radius: var(--radius-sheet);
+  background: var(--mat-sheet-bg);
+  backdrop-filter: blur(var(--mat-sheet-blur)) saturate(var(--mat-glass-saturate));
+}
+
+:root[data-shell='modern'] .provider-removal .button {
+  min-block-size: var(--target-min);
+  border-radius: var(--radius-control);
+}
+
+.settings-tray {
+  display: block;
+}
+
+.settings-tray-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.settings-tray-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: var(--radius-xs);
+}
+
+.settings-tray-choice[data-checked] .settings-tray-mark {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.settings-tray-choice[data-checked] .settings-tray-mark::after {
+  content: '';
+  inline-size: 0.66rem;
+  block-size: 0.38rem;
+  border: solid currentColor;
+  border-width: 0 0 2px 2px;
+  rotate: -45deg;
+}

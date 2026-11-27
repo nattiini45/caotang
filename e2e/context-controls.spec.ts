@@ -436,6 +436,12 @@ test('German narrow Modern context controls wrap and remain keyboard-reachable',
   const box = page.getByRole('combobox', { name: 'Absicht' });
   await box.fill('Betrachten Sie @Storm');
   await expect(page.getByRole('listbox', { name: 'Einzubeziehender Kontext' })).toBeVisible();
+  await expect(popup(page)).toHaveCSS('position', 'fixed');
+  await expect.poll(async () => {
+    const [dropdown, input] = await Promise.all([popup(page).boundingBox(), box.boundingBox()]);
+    return dropdown !== null && input !== null && Math.abs(dropdown.y + dropdown.height + 2 - input.y) <= 1
+      && Math.abs(dropdown.x - input.x) <= 1;
+  }).toBe(true);
   await box.press('Tab');
   await expect(box).toBeFocused();
   await expect(page.getByRole('list', { name: 'Kontextauswahl für die nächste Anfrage' })).toContainText('The Storm');
