@@ -13,6 +13,14 @@
   flex-shrink: 0;
 }
 
+.goal-composer-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
 .goal-composer h3,
 .goal-composer p {
   margin: 0;

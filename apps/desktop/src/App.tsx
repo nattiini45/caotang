@@ -77,9 +77,12 @@ export function App(): ReactNode {
   // The native menu and the tray are the page's words, so the page keeps them current: which project is open decides which items
   // mean anything, and the tray's line says whether task runs are carrying on.
   const openProject = session === null ? null : session.state.manifest.project.name;
+  const settings = boot.kind === 'ready' ? boot.services.settings : undefined;
   useEffect(() => {
-    publishNativeState({ project: openProject });
-  }, [openProject, trayHidden, language]);
+    const publish = () => publishNativeState({ project: openProject, closeToTray: settings?.current().closeToTray === true });
+    publish();
+    return settings?.subscribe(publish);
+  }, [openProject, trayHidden, language, settings]);
 
   const show = (opened: Opened): void => {
     const previous = current.current;

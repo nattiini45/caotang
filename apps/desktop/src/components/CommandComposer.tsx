@@ -81,10 +81,14 @@ export function CommandComposer({ value, onChange, onRun, placeholder, disabled,
     };
     list.showPopover?.();
     place();
+    const footer = input.closest('.agent-foot');
+    const observer = footer === null ? null : new ResizeObserver(place);
+    if (footer !== null) observer?.observe(footer);
     window.addEventListener('resize', place);
     window.addEventListener('scroll', place, true);
     return () => {
       if (list.isConnected) list.hidePopover?.();
+      observer?.disconnect();
       window.removeEventListener('resize', place);
       window.removeEventListener('scroll', place, true);
     };
