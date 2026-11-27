@@ -390,8 +390,12 @@ describe('the packaging legs run the gate', () => {
 
   it('uses the same Vitest worker budget in both Windows gates', () => {
     for (const job of [windows, jobBlock(ci, 'verify_windows')]) {
-      expect(job).toContain("VITEST_MAX_WORKERS: '2'");
+      expect(job).toContain("CAOTANG_VERIFY_WORKERS: '2'");
     }
+  });
+
+  it('limits Intel macOS test workers without changing the other matrix legs', () => {
+    expect(macAndLinux).toContain("CAOTANG_VERIFY_WORKERS: ${{ matrix.target == 'mac-x64' && '2' || '' }}");
   });
 
   it('quotes any step name carrying what an unquoted YAML value cannot hold', () => {
