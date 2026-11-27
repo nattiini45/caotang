@@ -377,6 +377,8 @@ The project title retains room for a recognizable name and New/More never shrink
 
 Classic's status line becomes a toast capsule at the top centre with the same roles (`status`, or `alert` for an error), text, links and dismissal behavior. A later informational message cannot replace an error. A message with an action is never dismissed on a timer (WCAG 2.2.1). A failed save stays visible in the top bar, names the failed channels and retains the recovery paths above; the stale-tab notice stays a dialog.
 
+Browser-storage and account-save notices reserve a row between the top bar and the page instead of floating over the document. The row fits the notices on wide and narrow screens, so the visible document title and the notice actions never overlap.
+
 ### 8.7 The review near the text
 
 Optional polish inside M7: when a marked change has focus or the pointer, a small glass capsule with **Reject** and **Accept** appears beside it, calling the review bar's own handlers for the change in focus. The review bar stays the full control and the keyboard path.

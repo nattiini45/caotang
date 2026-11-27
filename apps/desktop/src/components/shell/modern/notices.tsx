@@ -59,12 +59,6 @@ export function ModernNotices({ regions }: ModernSlotProps): ReactNode {
           {regions.storageBanner}
         </div>
       )}
-      {/* The picture-aware notices take the general banner's place, never sit beside it. */}
-      {regions.storageBanner === null ? (
-        <div className="modern-toast" data-testid="modern-toast">
-          {regions.pictureNotices}
-        </div>
-      ) : null}
       {regions.status === null ? null : (
         <div className="modern-toast" data-testid="modern-toast">
           {regions.status}

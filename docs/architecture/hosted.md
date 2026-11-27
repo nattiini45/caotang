@@ -207,6 +207,8 @@ If storage is blocked, full, or the queue exceeds the cap, keep the new batch in
 
 One turn at a time stages or sends. A save with no pending work may try its new batch immediately. Once a batch is held, no later save or open sends it without a writer's action.
 
+For an editable account project, Classic and Modern show the account save state in place of browser-only save confirmation and eviction advice. The summary distinguishes account confirmation from edits still on this device and from a conflicting save. The summary stays blank while its code loads; the detailed account notice owns recovery if the load fails. When the notice confirms a send, it shows the confirmation once with the Read action in place of the summary. The notice retains Send, Read and conflict actions. The document footer does not repeat a local success as “Saved”; local write failures still take precedence because the latest change has not reached the account save target yet.
+
 An accepted write is not the same as a file the editor has read. If a replay sends a file from an earlier open, that file's later edits wait separately until the writer reads the account copy. Unrelated paths can still be sent, but a save that ties a waiting path to a manifest change waits together. Reopening reads the account without sending either set. It releases the waiting edits for an explicit send, not an automatic overwrite: a later account version still needs approval. If either set exists only in memory, the read cannot replace the open session.
 
 | State | Event | Next | What happens |

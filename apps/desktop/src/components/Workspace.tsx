@@ -10,7 +10,7 @@
  * the delete being confirmed, the export dialog, the theme, the status line). Project and view state live in the
  * session, and every change to them is a dispatch.
  */
-/* lingui-set comment="Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words" */
+/* lingui-set comment="Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words" */
 
 import {
   lazy,
@@ -54,10 +54,9 @@ import type { PendingFailure } from '../app/pending-journal.js';
 import type { ProjectSession, SaveState } from '../app/session.js';
 import { crossedTarget, localDayOfIso, targetProgress, wordsWrittenToday } from '../app/session-progress.js';
 import { focusBinderFilter } from './BinderFilters.js';
-import { dismissBannerForVisit, durabilitySentence, isBannerDismissedForVisit } from '../app/storage.js';
+import { dismissBannerForVisit, isBannerDismissedForVisit } from '../app/storage.js';
 import { evictionVariantApplies, type EvictionFacts } from '../app/picture-notices.js';
 import { ExportSweepOffer, sweepBeforeExport, sweepOfferBeforeExport } from '../media/PictureStorage.js';
-import { PictureNotices } from './PictureNotices.js';
 import { saveStateWords } from '../app/integrity-model.js';
 import { nativeFolderId, nativeFoldersAvailable } from '../app/native-folders.js';
 import { deviceTimeZone, nativeRefusalSentence, onNativeCommand, studioTicks, takeNativeCommands } from '../app/native-os.js';
@@ -80,6 +79,7 @@ import { LazyBoundary, lazyView } from './lazy-view.js';
  * projects never render it, so its code and its states stay out of the first load (hosted.md §7.2).
  */
 const HostedSaveNotice = lazyView(() => import('./HostedSaveNotice.js').then((module) => ({ default: module.HostedSaveNotice })));
+const BrowserNotices = lazyView(() => import('./BrowserStorageBanner.js'));
 import type { TimelineFocusRequest } from '../app/timeline-model.js';
 import { clearTray, pendingRows } from '../app/timeline-tray.js';
 import { EditorPane, type RevealRequest } from './EditorPane.js';
@@ -188,6 +188,7 @@ export function Workspace({
 }: WorkspaceProps): ReactNode {
   useSession(session);
   const { state, view } = session;
+  const hosted = hostedTargetFor(session.projectId) !== null;
   // The printed-key layout behind the shortcut labels the toolbar shows (keymap.ts; the same subscription as EditorPane).
   const keyboardLayout = useSyncExternalStore(keyboardLayoutStore.subscribe, keyboardLayoutStore.snapshot);
   // Which dialog the toolbar opened, so only that panel's code is fetched (dialog-requests.ts).
@@ -251,7 +252,6 @@ export function Workspace({
   const [agentDraft, setAgentDraft] = useState<{ readonly text: string; readonly serial: number } | null>(null);
   const [settingsSection, setSettingsSection] = useModalValue<SettingsSection>('settings');
   const [bannerDismissed, setBannerDismissed] = useState(() => isBannerDismissedForVisit());
-  const [explainStorage, setExplainStorage] = useState(false);
   /** The unused picture files a sweep would remove, offered before an export, until the writer has answered. */
   const [sweepOffer, setSweepOffer] = useModalValue<readonly SweepCandidate[]>('sweep');
   const [storedToday, setStoredToday] = useState(0);
@@ -348,8 +348,6 @@ export function Workspace({
   };
   // A project with pictures and no folder gets the picture-aware banner (PictureNotices) in place of the general one.
   const showStorageBanner = durability.persisted === false && !bannerDismissed && !evictionVariantApplies(pictureFacts);
-  // A whole sentence used as a value in the banner's message; a name keeps it out of a positional `{0}`.
-  const storageSentence = durabilitySentence(durability);
   const sample = settingsNow.sampleProjectIds.includes(session.projectId);
 
   // The chat window's model picker (provider-gateway §2, "One connection, many models"): every model picked under the writer's
@@ -555,7 +553,9 @@ export function Workspace({
   const folderWatch = useFolderWatch(session);
   const nativeFolder = nativeFolderId(folderCopy) !== undefined;
   const browserFolderPicker = !nativeFoldersAvailable() && folderAccessSupported();
-  const saveWords = saveStateWords(saveState, stopCause, failedSaveChannels, nativeFolder);
+  const saveWords = hosted && (saveState === 'saved' || saveState === 'saving')
+    ? null
+    : saveStateWords(saveState, stopCause, failedSaveChannels, nativeFolder);
   // The export dialog compiles the item the binder has selected, unless that is a section (then it is the whole manuscript).
   const exportSelection: ExportSelection | null =
     selectedNode === undefined || selectedNode.id === 'manuscript' || selectedNode.id === 'research' || selectedNode.id === 'root'
@@ -1031,7 +1031,6 @@ export function Workspace({
   };
 
   const review = session.coherenceReview.snapshot();
-  const hosted = hostedTargetFor(session.projectId) !== null;
   const regions: ShellRegions = {
     documentKind: mediaView !== null && mediaNode !== undefined ? mediaKindOf(mediaNode) : activeDoc === null ? null : 'scene',
     create: { target: newTargetNode?.title ?? null, make: makeNew },
@@ -1199,62 +1198,13 @@ export function Workspace({
         />
       ),
     // A status region is a div: ARIA does not allow the role on an aside.
-    storageBanner: showStorageBanner ? (
-      <div className="storage-banner" role="status" aria-label={t`Browser storage`} data-testid="storage-banner">
-        <div>
-          {narrow ? (
-            <p>
-              <Trans>
-                Your words are kept in this browser, and the browser has not promised to keep them. A phone or tablet clears browser
-                storage sooner than a computer when space runs short, and nothing syncs yet, so this copy is not your book’s only home.
-                Export a backup often and keep it somewhere else.
-              </Trans>
-            </p>
-          ) : (
-            <p>
-              <Trans>
-                Your words are kept in this browser, and the browser has not promised to keep them. Export a backup to keep a copy you
-                can open anywhere.
-              </Trans>
-            </p>
-          )}
-          {explainStorage ? (
-            <p className="muted">
-              <Trans>
-                Browsers may remove stored data when a device runs short of space. Asking the browser to keep it lowers that risk, and
-                the browser has not granted it here. {storageSentence} A bundle is the copy that does not depend on the browser.
-              </Trans>
-            </p>
-          ) : null}
-        </div>
-        <div className="storage-banner-actions">
-          <button type="button" className="button" onClick={exportBundleOffering}>
-            <Trans>Export a backup</Trans>
-          </button>
-          <button type="button" className="button is-quiet" aria-expanded={explainStorage} onClick={() => setExplainStorage((on) => !on)}>
-            <Trans>Learn why</Trans>
-          </button>
-          <button
-            type="button"
-            className="button is-quiet"
-            onClick={() => {
-              dismissBannerForVisit();
-              setBannerDismissed(true);
-            }}
-          >
-            <Trans>Dismiss</Trans>
-          </button>
-        </div>
-      </div>
+    storageBanner: !hosted && (showStorageBanner || pictureFacts.pictureCount > 0) ? (
+      <LazyBoundary label={t`Browser storage`}>
+        <BrowserNotices onExport={exportBundleOffering} {...(showStorageBanner
+          ? { narrow, durability, onDismiss: () => { dismissBannerForVisit(); setBannerDismissed(true); } }
+          : { projectId: session.projectId, facts: pictureFacts, ...(browserFolderPicker ? { onSaveToFolder: saveToFolder } : {}) })} />
+      </LazyBoundary>
     ) : null,
-    pictureNotices: (
-      <PictureNotices
-        projectId={session.projectId}
-        facts={pictureFacts}
-        onExport={exportBundleOffering}
-        {...(browserFolderPicker ? { onSaveToFolder: saveToFolder } : {})}
-      />
-    ),
     status: message === null && !folderSaving && review.kind !== 'running' && folderWatch.changed === null && !hosted ? null : (
       <>
         {review.kind === 'running' ? (
@@ -1311,7 +1261,9 @@ export function Workspace({
         )}
       </>
     ),
-    saveState: <SaveIndicator state={saveState} words={saveWords} onExport={exportNow} />,
+    saveState: saveWords === null ? (
+      <LazyBoundary label={null}><HostedSaveNotice session={session} summary={saveState === 'saving' ? 'saving' : 'saved'} /></LazyBoundary>
+    ) : <SaveIndicator state={saveState} words={saveWords} onExport={exportNow} />,
     progress: { target, setTarget: saveTarget, saveState, saveWords, exportBackup: exportNow },
     search: {
       state,

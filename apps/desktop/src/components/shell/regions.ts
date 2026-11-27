@@ -71,7 +71,7 @@ export interface ShellProgress {
   /** Saves the daily target (the app setting), as the editor's quick-set does. */
   readonly setTarget: (words: number) => void;
   readonly saveState: SaveState;
-  readonly saveWords: ReturnType<typeof saveStateWords>;
+  readonly saveWords: ReturnType<typeof saveStateWords> | null;
   /** Export a backup, the save state's own button on a failed save. */
   readonly exportBackup: () => void;
 }
@@ -147,10 +147,8 @@ export interface ShellRegions {
   readonly agent: ReactNode;
   /** The same agent panel for a window of its own (`placement="window"`): always open, with **Close** in its header. Modern's companion. */
   readonly agentWindow: ReactNode;
-  /** The storage banner, or `null` when it is not shown. */
+  /** The browser storage banner or a picture-aware storage notice, or `null`. */
   readonly storageBanner: ReactNode;
-  /** The picture-aware storage notices (pictures.md §6.5), shown only while the general banner is not. */
-  readonly pictureNotices: ReactNode;
   /** The status line, or `null` when there is no message. */
   readonly status: ReactNode;
   readonly saveState: ReactNode;

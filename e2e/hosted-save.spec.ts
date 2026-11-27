@@ -6,7 +6,14 @@ import { addDocument, createEmptyManifest, createProjectState } from '../package
 import type * as Crypto from '../packages/crypto/src/index.js';
 import type * as StudioHost from '../apps/desktop/src/app/studio-host.js';
 
-test('the studio keeps an offline edit across reopen and reads the account only after the writer asks', async ({ page }, info) => {
+for (const shell of ['classic', 'modern'] as const) test(`the ${shell} studio reports account saves and keeps an offline edit across a reopen`, async ({ page }, info) => {
+  test.setTimeout(60_000);
+  await page.addInitScript((shell) => {
+    localStorage.setItem('caotang.interface', shell);
+    const storage = Object.getPrototypeOf(navigator.storage) as Record<string, unknown>;
+    storage['persisted'] = async () => false;
+    storage['persist'] = async () => false;
+  }, shell);
   const origin = 'https://account.example';
   const server = new FakeBlobServer();
   const blobStore = server.client();
@@ -59,6 +66,15 @@ test('the studio keeps an offline edit across reopen and reads the account only 
       await route.fulfill({ status: 412, headers });
     }
   });
+  const chooseScene = async (title: RegExp) => {
+    const item = page.getByRole('treeitem', { name: title });
+    if (shell === 'modern') {
+      const binder = page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Binder', exact: true });
+      await expect(binder).toBeVisible();
+      if (!(await item.isVisible())) await binder.click();
+    }
+    await item.click();
+  };
   const open = async () => {
     await page.evaluate(async ({ origin, projectId, bytes }) => {
       const hostPath = '/src/app/studio-host.ts';
@@ -67,54 +83,94 @@ test('the studio keeps an offline edit across reopen and reads the account only 
       const { projectKey } = await import(/* @vite-ignore */ fixturePath) as { projectKey(bytes: Uint8Array): ReturnType<typeof Crypto.importProjectKey> };
       setHostedProject({ origin, projectId, device: 'device-one', key: await projectKey(Uint8Array.from(bytes)) });
     }, { origin, projectId, bytes: [...key.export()] });
-    await page.getByRole('treeitem', { name: /^The Landing/ }).click();
+    await chooseScene(/^The Landing/);
   };
   await page.goto('/');
   await open();
 
   const editor = page.getByRole('textbox', { name: 'Document text' });
+  const status = page.getByTestId('save-state');
   const send = page.getByRole('button', { name: 'Send them to your account' });
+  const expectNoticeAbovePage = async () => {
+    const notices = page.getByTestId('modern-notices');
+    const title = page.getByRole('heading', { name: 'The Landing', exact: true });
+    await expect(title).toBeInViewport();
+    await expect.poll(async () => {
+      const [noticeBox, pageBox] = await Promise.all([notices.boundingBox(), page.getByRole('main').boundingBox()]);
+      return noticeBox !== null && pageBox !== null && noticeBox.y + noticeBox.height <= pageBox.y;
+    }).toBe(true);
+  };
+  await expect(status).toHaveText('Your account has the changes.');
+  await expect(page.getByTestId('storage-banner')).toHaveCount(0);
+  await expect(page.getByText('All changes saved in this browser', { exact: true })).toHaveCount(0);
   offline = true;
   await editor.fill(revised);
   await expect(send).toBeVisible();
+  await expect(status).toHaveText('Saved here, not to your account.');
+  await expect(page.getByTestId('document-save-state')).toHaveCount(0);
+  if (shell === 'modern') await expectNoticeAbovePage();
   offline = false;
 
   await page.reload();
   await open();
   await expect(editor).toHaveText(original);
   await expect(send).toBeVisible();
+  await expect(status).toHaveText('Saved here, not to your account.');
   await send.click();
-  await expect(page.getByRole('button', { name: 'Read them' })).toBeVisible();
+  await page.getByRole('button', { name: 'Read them' }).click({ trial: true });
   await expect(editor).toHaveText(original);
+  await expect(page.getByText('Your account has the changes.', { exact: true })).toHaveCount(1);
+  await expect(status).toHaveCount(0);
+  if (shell === 'modern') await expectNoticeAbovePage();
   const screenshot = info.outputPath('hosted-send.png');
   await page.screenshot({ path: screenshot });
   await info.attach('Hosted send acknowledged', { path: screenshot, contentType: 'image/png' });
+  if (shell === 'modern') {
+    const wide = page.viewportSize()!;
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectNoticeAbovePage();
+    await page.getByRole('button', { name: 'Read them' }).click({ trial: true });
+    if (info.project.name === 'chromium') {
+      const narrow = info.outputPath('hosted-send-narrow.png');
+      await page.screenshot({ path: narrow });
+      await info.attach('Account confirmation above the page on a phone', { path: narrow, contentType: 'image/png' });
+    }
+    await page.setViewportSize(wide);
+  }
   await editor.fill(beforeRead);
   await expect(page.getByRole('status').filter({ hasText: /Read before sending these files: .*The Landing/ })).toBeVisible();
   await expect(send).not.toBeVisible();
+  if (shell === 'modern') await expectNoticeAbovePage();
   const waiting = info.outputPath('hosted-read-before-send.png');
   await page.screenshot({ path: waiting });
   await info.attach('A further edit waits for an account read', { path: waiting, contentType: 'image/png' });
   await fs.refresh();
   await fs.writeAtomic(`docs/${other}.md`, 'Another device heard the bell.');
-  await page.getByRole('treeitem', { name: /^The Watch/ }).click();
+  await chooseScene(/^The Watch/);
   await editor.fill('The keeper put down the bell.');
   await send.click();
   const conflict = page.getByRole('dialog', { name: 'Another device saved these first' });
+  await expect(status).toHaveText('Another device saved these first');
   await expect(conflict).toContainText(/Read before sending these files: .*The Landing/);
   const question = info.outputPath('hosted-conflict-with-waiting-file.png');
   await page.screenshot({ path: question });
   await info.attach('The conflict includes the waiting file and a read action', { path: question, contentType: 'image/png' });
   await conflict.getByRole('button', { name: 'Read them' }).click();
-  await page.getByRole('treeitem', { name: /^The Landing/ }).click();
+  await chooseScene(/^The Landing/);
   await expect(editor).toHaveText(revised);
   await expect(page.getByRole('treeitem', { name: /The Landing.*5 words/ })).toBeVisible();
   await expect(send).toBeVisible();
   await send.click();
   await conflict.getByRole('button', { name: 'Keep this device’s text' }).click();
   await page.getByRole('button', { name: 'Read them' }).click();
-  await page.getByRole('treeitem', { name: /^The Landing/ }).click();
+  await chooseScene(/^The Landing/);
   await expect(editor).toHaveText(beforeRead);
   await fs.refresh();
   expect(JSON.parse(await fs.read('caotang.json'))).toEqual(originalManifest);
+  if (shell === 'modern') {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByTestId('modern-title-capsule').click();
+    await expect(page.getByTestId('scene-info-save-state')).toHaveText('Your account has the changes.');
+    await expect(page.getByTestId('storage-banner')).toHaveCount(0);
+  }
 });

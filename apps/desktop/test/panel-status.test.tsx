@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { lazy, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { i18n } from '@lingui/core';
 import { I18nProvider } from '@lingui/react';
@@ -51,5 +51,15 @@ describe('panel status glyphs', () => {
     expect(html).toContain('Erneut versuchen');
     expect(html).toContain('Neu laden');
     expect(html).not.toContain('aria-label="Error"');
+  });
+
+  it('keeps a secondary inline indicator empty during loading and after a chunk failure', () => {
+    const Pending = lazy(() => new Promise<never>(() => {}));
+    expect(markup(<p><LazyBoundary label={null}><Pending /></LazyBoundary></p>)).toBe('<p></p>');
+    const boundary = new LazyBoundary({ label: null });
+    boundary.state = { error: new ChunkLoadError('offline'), tries: 0 };
+    expect(markup(<p>{boundary.render()}</p>)).toBe('<p></p>');
+    boundary.state = { error: new Error('render bug'), tries: 0 };
+    expect(() => boundary.render()).toThrow('render bug');
   });
 });

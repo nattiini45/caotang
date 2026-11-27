@@ -166,9 +166,9 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
           ) : null}
         </button>
         <DocumentModeOutlet />
-        <span className="visually-hidden" role="status">{progress.saveWords.text}</span>
-        {progress.saveWords.summary === undefined ? (
-          <span className="modern-ornament-state" aria-hidden="true">{regions.saveState}</span>
+        {progress.saveWords !== null && <span className="visually-hidden" role="status">{progress.saveWords.text}</span>}
+        {progress.saveWords?.summary === undefined ? (
+          <span className="modern-ornament-state" aria-hidden={progress.saveWords === null ? undefined : true}>{regions.saveState}</span>
         ) : (
             <button
               type="button"

@@ -46,6 +46,7 @@ import {
 import { countBody, getBody, getRevision } from '@caotang/store';
 
 import { activeAppDb } from '../app/app-db.js';
+import { hostedTargetFor } from '../app/hosted-target-registry.js';
 import { nodeById } from '../app/binder-model.js';
 import { publishEditorCaret, type EditorCaret } from '../app/editor-selection.js';
 import { publishEditorReady } from '../app/editor-ready.js';
@@ -337,6 +338,7 @@ function DocumentEditor({
   const stored = getBody(session.state, docId);
   const revision = getRevision(session.state, docId);
   const save = session.autosave.status(docId);
+  const saveState = documentSaveState(save);
   const counts = countBody(editor === null ? stored : editor.getContent());
   const { ready: editorReady, state: rebaseState, seed: seedRebase } = useStoreRebase({
     session, docId, enabled: editor !== null,
@@ -617,15 +619,17 @@ function DocumentEditor({
             </button>
           ) : null}
           <TargetQuickSet progress={target} onSetTarget={onSetTarget} />
-          <span className={`editor-save${documentSaveState(save) === 'conflict' ? ' load-banner' : ''}`} aria-live="polite" data-testid="document-save-state" data-state={documentSaveState(save)}>
-            {documentSaveState(save) === 'conflict'
-              ? saveConflictWords()
-              : save.lastError !== null
-              ? t`Not saved yet. Your words are in this tab; they will be written again on the next change.`
-              : save.dirty
-                ? t`Saving…`
-                : t`Saved`}
-          </span>
+          {(saveState === 'conflict' || save.lastError !== null || save.dirty || hostedTargetFor(session.projectId) === null) && (
+            <span className={`editor-save${saveState === 'conflict' ? ' load-banner' : ''}`} aria-live="polite" data-testid="document-save-state" data-state={saveState}>
+              {saveState === 'conflict'
+                ? saveConflictWords()
+                : save.lastError !== null
+                ? t`Not saved yet. Your words are in this tab; they will be written again on the next change.`
+                : save.dirty
+                  ? t`Saving…`
+                  : t`Saved`}
+            </span>
+          )}
         </footer>
       </div>
     </article>

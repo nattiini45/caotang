@@ -124,6 +124,7 @@ export class HostedTarget {
     await this.#inTurn(async () => {
       if (this.#baseline === null) return;
       const previous = this.#state;
+      if (previous.kind === 'idle') this.#set({ kind: 'saving' });
       try {
         const prepared = await this.#baseline.prepare(state, (await this.#assets?.()) ?? {});
         this.queue.stage(prepared.changes, this.#unread);
@@ -145,7 +146,7 @@ export class HostedTarget {
         else this.#unsaved();
       } else if (this.queue.deferred().length > 0) {
         this.#set({ kind: 'stale' });
-      } else if (previous.kind === 'unsaved') {
+      } else if (previous.kind === 'idle' || previous.kind === 'unsaved') {
         this.#set({ kind: 'idle' });
       }
     });

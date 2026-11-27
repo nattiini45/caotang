@@ -62,7 +62,7 @@ export function PictureNotices({ projectId, facts, folderAccess = folderAccessSu
 
   if (evictionNoticeDue(facts, record)) {
     return (
-      <div className="storage-banner" role="status" aria-label={t`Browser storage`} data-testid="storage-banner" data-variant="pictures">
+      <div className="storage-banner notice-row" role="status" aria-label={t`Browser storage`} data-testid="storage-banner" data-variant="pictures">
         <div>
           <p>{evictionPicturesText(userAgent)}</p>
         </div>
@@ -85,7 +85,7 @@ export function PictureNotices({ projectId, facts, folderAccess = folderAccessSu
 
   if (bundleReminderDue({ folderAccess, pictureBytes: facts.pictureBytes, now: now() }, record)) {
     return (
-      <div className="storage-banner" role="status" aria-label={t`Bundle reminder`} data-testid="bundle-reminder">
+      <div className="storage-banner notice-row" role="status" aria-label={t`Bundle reminder`} data-testid="bundle-reminder">
         <div>
           <p>{bundleReminderText(facts.pictureBytes)}</p>
         </div>

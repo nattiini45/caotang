@@ -61,6 +61,19 @@ it('a no-op save does not write anything', async () => {
   expect(send).not.toHaveBeenCalled();
 });
 
+it('does not report the account saved while it is preparing the files', async () => {
+  const { saving, changes, send } = await target();
+  let prepared: (value: typeof change[]) => void = () => undefined;
+  changes.mockImplementationOnce(() => new Promise((resolve) => { prepared = resolve; }));
+  const writing = saving.save(state);
+  await vi.waitFor(() => expect(changes).toHaveBeenCalledOnce());
+  expect(saving.state()).toEqual({ kind: 'saving' });
+  expect(send).not.toHaveBeenCalled();
+  prepared([change]);
+  await writing;
+  expect(saving.state()).toEqual({ kind: 'idle' });
+});
+
 it('an open that finds a queue offers send; a later save stages work without sending it', async () => {
   const { saving, send } = await target(['docs/earlier.md']);
   expect(saving.state()).toEqual({ kind: 'unsaved', paths: ['docs/earlier.md'], persisted: true });
