@@ -34,6 +34,33 @@ test('account projects opens a packaged window without the local studio bridge',
     await account.getByRole('button', { name: 'Connect in your browser' }).click();
     await expect(account.getByRole('alert')).toContainText('HTTPS address without a path');
     await account.screenshot({ path: test.info().outputPath('account-connect.png') });
+
+    expect(await account.evaluate(async () => {
+      const frame = document.createElement('iframe');
+      frame.src = './studio.html';
+      await new Promise<void>((resolve) => {
+        frame.addEventListener('load', () => resolve(), { once: true });
+        document.body.append(frame);
+      });
+      const target = frame.contentWindow;
+      if (!target) throw new Error('Account studio frame is missing.');
+      const key = await crypto.subtle.importKey('raw', new Uint8Array(32).fill(7), 'HKDF', false, ['deriveBits']);
+      const algorithm = { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: new Uint8Array() };
+      const expected = new Uint8Array(await crypto.subtle.deriveBits(algorithm, key, 256));
+      const delivered = new Promise<MessageEvent<CryptoKey>>((resolve, reject) => {
+        target.addEventListener('message', resolve, { once: true });
+        target.addEventListener('messageerror', () => reject(new Error('Account studio could not deserialize the key.')), { once: true });
+      });
+      target.postMessage(key, location.origin);
+      const event = await delivered;
+      const actual = await target.crypto.subtle.deriveBits(algorithm, event.data, 256);
+      return {
+        origin: event.origin,
+        fromAccountWindow: event.source === window,
+        extractable: event.data.extractable,
+        derivesSameBits: new Uint8Array(actual).every((byte, index) => byte === expected[index]),
+      };
+    })).toEqual({ origin: 'app://account', fromAccountWindow: true, extractable: false, derivesSameBits: true });
   } finally {
     await closeShell(electron);
   }
