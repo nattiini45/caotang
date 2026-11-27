@@ -31,3 +31,44 @@
   min-block-size: var(--target-min);
   border-radius: var(--radius-control);
 }
+
+.settings-tray {
+  display: block;
+}
+
+.settings-tray-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.settings-tray-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: var(--radius-xs);
+}
+
+.settings-tray-choice[data-checked] .settings-tray-mark {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.settings-tray-mark svg {
+  display: block;
+  inline-size: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}

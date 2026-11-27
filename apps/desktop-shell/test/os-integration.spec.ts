@@ -264,6 +264,10 @@ test('an opt-in tray shows a notice only on the first hide and keeps the rendere
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     const settings = page.getByTestId('settings');
     await settings.locator('[data-section="appearance"]').click();
+    expect(await settings.locator('.settings-body').evaluate((body) => ({
+      width: getComputedStyle(body, '::-webkit-scrollbar').width,
+      buttons: getComputedStyle(body, '::-webkit-scrollbar-button').display,
+    }))).toEqual({ width: '8px', buttons: 'none' });
     const preference = settings.getByRole('checkbox', { name: /keep Caotang in the system tray/i });
     await expect(preference).not.toBeChecked();
     await preference.click();

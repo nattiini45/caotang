@@ -221,6 +221,9 @@ Settings has one vertical scroller for its content, with its Close button in a s
 the section navigation moves to a horizontal strip so all sections remain reachable. Removing a provider opens a UI SDK
 alert dialog that names the profile and explains that its stored key is removed too. No removal happens until confirmation.
 
+Scrollbars are thin and themed with the platform's CSS properties. Electron uses an arrowless thumb at normal contrast because
+native thin scrollbars can still show arrow buttons. Forced-colour and higher-contrast preferences keep the system scrollbars.
+
 ### 5.3 Browser-storage persistence
 
 The project session owns an in-memory `opening|open|closing|closed` handle. Project switching, returning to Projects and failed opening share one idempotent `closeSafely()`: settlement failure never skips cleanup or leaves the project lease held. Cleanup still detaches subscriptions and disposes autosave if a save or writing-session record fails, and the existing notice reports the failure. The lease is released last. Saved project and writing-session formats do not change.

@@ -111,6 +111,7 @@ test.describe('German Modern studio at 150% display scaling', () => {
       await page.keyboard.press('ControlOrMeta+j');
       const panel = page.locator('#modern-companion');
       await expect(panel.locator('.agent-foot')).toBeVisible();
+      await page.getByTestId('storage-banner').getByRole('button', { name: 'Ein Backup exportieren' }).click({ trial: true });
 
       const bounds = await page.evaluate(() => {
         const box = (selector: string): DOMRect => {

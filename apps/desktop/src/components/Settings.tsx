@@ -15,7 +15,7 @@ import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
 import { AlertDialog, AlertDialogClose, AlertDialogContent, AlertDialogDescription, AlertDialogTitle } from '@ui-sdk/react/alert-dialog';
 import { Checkbox, CheckboxIndicator } from '@ui-sdk/react/checkbox';
-import './provider-removal.css';
+import './settings-controls.css';
 import { isolate } from '@caotang/i18n';
 import {
   isLocalBase,
@@ -1154,19 +1154,19 @@ function AppearanceSection({ services }: { readonly services: AppServices }): Re
         <Trans>The choice is kept in this browser. Until you choose, the page follows the system.</Trans>
       </p>
       {canSetCloseToTray() ? (
-        <fieldset className="settings-radios">
+        <fieldset className="settings-radios settings-tray">
           <legend><Trans>Desktop window</Trans></legend>
-          <label className="settings-check">
-            <Checkbox className="mcp-hook-check" checked={settings.closeToTray} aria-describedby="close-to-tray-help"
-              onCheckedChange={(value) => {
-                setTrayError(null);
-                void services.settings.update({ closeToTray: value === true }, { publishAfterSave: true }).then(setTrayError);
-              }}
-            >
+          <Checkbox className="settings-tray-choice" checked={settings.closeToTray} aria-describedby="close-to-tray-help"
+            onCheckedChange={(value) => {
+              setTrayError(null);
+              void services.settings.update({ closeToTray: value === true }, { publishAfterSave: true }).then(setTrayError);
+            }}
+          >
+            <span className="settings-tray-mark" aria-hidden="true">
               <CheckboxIndicator><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7" /></svg></CheckboxIndicator>
-            </Checkbox>
-            <span><Trans>Keep Caotang in the system tray when I close the window</Trans></span>
-          </label>
+            </span>
+            <Trans>Keep Caotang in the system tray when I close the window</Trans>
+          </Checkbox>
           <p className="muted" id="close-to-tray-help"><Trans>Closing the window quits Caotang unless you turn this on. If the system tray is available, scheduled tasks can still run there.</Trans></p>
           <FormMessage message={trayError === null ? null : { text: trayError, tone: 'error' }} />
         </fieldset>
