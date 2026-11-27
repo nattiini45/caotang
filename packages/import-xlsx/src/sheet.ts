@@ -7,7 +7,7 @@
 import { attr, readXml, textOf, type XmlElement } from '@caotang/import-read/xml';
 import { MAX_TABLE_COLUMNS, MAX_TABLE_ROWS, type TableCellRow } from '@caotang/import-table';
 
-import { isDateStyle, type XlsxWorkbook } from './workbook.js';
+import { isDateStyle, xlsxString, type XlsxWorkbook } from './workbook.js';
 
 /**
  * The safety caps one worksheet may hold. Excel's own last column is XFD (16,384): a cell reference places its cell,
@@ -72,11 +72,11 @@ export function serialDate(serial: number, date1904: boolean): { date: string; t
 /** An inline string: its own `t`, or every run's `t`, without phonetic reading aids. */
 function inlineText(container: XmlElement): string {
   const own = kid(container, 't');
-  if (own !== undefined) return textOf(own);
+  if (own !== undefined) return xlsxString(textOf(own));
   return kids(container, 'r')
     .map((run) => kid(run, 't'))
     .filter((text): text is XmlElement => text !== undefined)
-    .map((text) => textOf(text))
+    .map((text) => xlsxString(textOf(text)))
     .join('');
 }
 
@@ -124,7 +124,7 @@ export function sheetGrid(bytes: Uint8Array, workbook: XlsxWorkbook, path: strin
       else if (type === 'e') {
         if (raw !== '') errors += 1;
         text = raw;
-      } else if (type === 'str') text = raw;
+      } else if (type === 'str') text = xlsxString(raw);
       else if (raw === '') text = '';
       else {
         const style = Number(attr(cell, 's') ?? '0');

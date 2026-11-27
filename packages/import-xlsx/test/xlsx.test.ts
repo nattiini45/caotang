@@ -1,7 +1,10 @@
 /**
  * The Excel workbook reader (#289): synthetic workbooks written to SpreadsheetML's shape — shared and inline strings,
- * numbers, booleans, errors, cached formulas, sparse cells, dates in both systems and several sheets. No real workbook is copied.
+ * numbers, booleans, errors, cached formulas, sparse cells, dates in both systems and several sheets, plus two small openpyxl-produced workbooks.
  */
+
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -50,6 +53,16 @@ describe('readXlsx', () => {
     if (read.ok) expect(read.value.rows[0]?.cells).toEqual(['Fish & <chips>']);
   });
 
+  it('reads SpreadsheetML character escapes as the text Excel shows', async () => {
+    const book = xlsx([{ name: 'Text', rows: [[
+      '<c r="A1" t="inlineStr"><is><t>literal _x005F_x000D_</t></is></c>',
+      '<c r="B1" t="inlineStr"><is><t>line_x000A_break</t></is></c>',
+    ]] }]);
+    const read = await readXlsx(book);
+    expect(read.ok).toBe(true);
+    if (read.ok) expect(read.value.rows[0]?.cells).toEqual(['literal _x000D_', 'line\nbreak']);
+  });
+
   it('keeps empty cells inside a sparse row and drops wholly blank rows as the CSV parser would', async () => {
     const book = xlsx([{ name: 'Sparse', rows: [[cell('A1', '0', 's'), cell('C1', '1', 's')], [cell('C2', '2', 's')], [], [cell('B4', '3', 's')]] }], { shared: ['Name', 'Tags', 'harbour', 'Mara'] });
     const read = await readXlsx(book);
@@ -89,6 +102,19 @@ describe('readXlsx', () => {
     const readMac = await readXlsx(mac);
     expect(readMac.ok).toBe(true);
     if (readMac.ok) expect(readMac.value.rows[1]?.cells[1]).toBe('2030-01-05');
+  });
+
+  it.each(['openpyxl-1900.xlsx', 'openpyxl-1904.xlsx'])('reads the openpyxl-produced %s date workbook as its CSV twin', async (file) => {
+    const bytes = new Uint8Array(readFileSync(resolve(__dirname, 'fixtures', file)));
+    const read = await readXlsx(bytes);
+    expect(read.ok, read.ok ? '' : JSON.stringify(read.error)).toBe(true);
+    if (!read.ok) return;
+    expect(read.value.sheets).toEqual(['Timeline']);
+    expect(read.value.rows.map((row) => row.cells)).toEqual([
+      ['Title', 'Start', 'Summary'],
+      ['Landing', '2026-01-04', 'A cartographer'],
+      ['Salt', '2026-01-09', 'Fish & <chips>'],
+    ]);
   });
 
   it('reads the chosen sheet and refuses one the workbook does not hold', async () => {
