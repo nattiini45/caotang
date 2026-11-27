@@ -6312,7 +6312,6 @@ msgid "British spelling. Past tense, close third person on Mara. No semicolons i
 msgstr ""
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #. Interpolated values: storageSentence.
 #: apps/desktop/src/components/BrowserStorageBanner.tsx
 #: apps/desktop/src/components/PictureNotices.tsx
@@ -22508,7 +22507,6 @@ msgstr ""
 msgid "The 1st (the default)"
 msgstr ""
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "the account copy"

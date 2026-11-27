@@ -79,8 +79,7 @@ import { LazyBoundary, lazyView } from './lazy-view.js';
  * projects never render it, so its code and its states stay out of the first load (hosted.md §7.2).
  */
 const HostedSaveNotice = lazyView(() => import('./HostedSaveNotice.js').then((module) => ({ default: module.HostedSaveNotice })));
-const BrowserStorageBanner = lazyView(() => import('./BrowserStorageBanner.js').then((module) => ({ default: module.BrowserStorageBanner })));
-const PictureNotices = lazyView(() => import('./BrowserStorageBanner.js').then((module) => ({ default: module.PictureNotices })));
+const BrowserNotices = lazyView(() => import('./BrowserStorageBanner.js'));
 import type { TimelineFocusRequest } from '../app/timeline-model.js';
 import { clearTray, pendingRows } from '../app/timeline-tray.js';
 import { EditorPane, type RevealRequest } from './EditorPane.js';
@@ -1199,22 +1198,13 @@ export function Workspace({
         />
       ),
     // A status region is a div: ARIA does not allow the role on an aside.
-    storageBanner: !hosted && showStorageBanner ? (
+    storageBanner: !hosted && (showStorageBanner || pictureFacts.pictureCount > 0) ? (
       <LazyBoundary label={t`Browser storage`}>
-        <BrowserStorageBanner narrow={narrow} durability={durability} onExport={exportBundleOffering}
-          onDismiss={() => { dismissBannerForVisit(); setBannerDismissed(true); }} />
+        <BrowserNotices onExport={exportBundleOffering} {...(showStorageBanner
+          ? { narrow, durability, onDismiss: () => { dismissBannerForVisit(); setBannerDismissed(true); } }
+          : { projectId: session.projectId, facts: pictureFacts, ...(browserFolderPicker ? { onSaveToFolder: saveToFolder } : {}) })} />
       </LazyBoundary>
     ) : null,
-    pictureNotices: !hosted && pictureFacts.pictureCount > 0 && (
-      <LazyBoundary label={t`Browser storage`}>
-        <PictureNotices
-          projectId={session.projectId}
-          facts={pictureFacts}
-          onExport={exportBundleOffering}
-          {...(browserFolderPicker ? { onSaveToFolder: saveToFolder } : {})}
-        />
-      </LazyBoundary>
-    ),
     status: message === null && !folderSaving && review.kind !== 'running' && folderWatch.changed === null && !hosted ? null : (
       <>
         {review.kind === 'running' ? (
@@ -1272,7 +1262,7 @@ export function Workspace({
       </>
     ),
     saveState: saveWords === null ? (
-      <LazyBoundary label={t`the account copy`}><HostedSaveNotice session={session} summary={saveState === 'saving' ? 'saving' : 'saved'} /></LazyBoundary>
+      <LazyBoundary label={null}><HostedSaveNotice session={session} summary={saveState === 'saving' ? 'saving' : 'saved'} /></LazyBoundary>
     ) : <SaveIndicator state={saveState} words={saveWords} onExport={exportNow} />,
     progress: { target, setTarget: saveTarget, saveState, saveWords, exportBackup: exportNow },
     search: {

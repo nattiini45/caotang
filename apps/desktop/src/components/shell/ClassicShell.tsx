@@ -235,8 +235,6 @@ export function ClassicLayout({ regions }: { regions: ShellRegions }): ReactNode
           </button>
         </div>
         {regions.storageBanner}
-        {/* The picture-aware notices take the general banner's place, never sit beside it. */}
-        {regions.storageBanner === null ? regions.pictureNotices : null}
         {regions.media}
         {/* Kept mounted while the corkboard is shown, so the editor keeps its undo history and its place. */}
         {regions.editor}

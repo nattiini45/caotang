@@ -52,8 +52,8 @@ export function lazyView<C extends ComponentType<never>>(load: () => Promise<{ r
 }
 
 export interface LazyBoundaryProps {
-  /** What is loading, in the words a sentence about it uses: "the storyboard", "Settings". */
-  readonly label: string;
+  /** What is loading, in the words a sentence about it uses. Null leaves recovery to a primary boundary. */
+  readonly label: string | null;
   /** `pane` fills the place the view goes. `toast` is the status line at the bottom, for a dialog that opens over the page. */
   readonly variant?: 'pane' | 'toast';
   /** For a `toast`: closes the thing that was being opened, so a failed load leaves nothing behind. */
@@ -80,10 +80,11 @@ export class LazyBoundary extends Component<LazyBoundaryProps, LazyBoundaryState
     const { label, variant = 'pane', onDismiss, children } = this.props;
     const { error, tries } = this.state;
     if (error === NO_ERROR) {
-      return <Suspense fallback={<LoadingLine label={label} variant={variant} />}>{children}</Suspense>;
+      return <Suspense fallback={label === null ? null : <LoadingLine label={label} variant={variant} />}>{children}</Suspense>;
     }
     // Not a failed load: this boundary has nothing to say about it, so it goes to the next one.
     if (!(error instanceof ChunkLoadError)) throw error;
+    if (label === null) return null;
     // Some browsers keep a failed import for the life of the page, so a second failure sends the writer to Reload, which always fetches fresh.
     const retried = tries > 0;
     const actions = (

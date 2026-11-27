@@ -6,14 +6,20 @@ import { Trans } from '@lingui/react/macro';
 import type { Durability } from '../app/session.js';
 import { durabilitySentence } from '../app/storage.js';
 
-export { PictureNotices } from './PictureNotices.js';
+import { PictureNotices, type PictureNoticesProps } from './PictureNotices.js';
 
-export function BrowserStorageBanner({ narrow, durability, onExport, onDismiss }: {
+interface BrowserStorageBannerProps {
   readonly narrow: boolean;
   readonly durability: Durability;
   readonly onExport: () => void;
   readonly onDismiss: () => void;
-}): ReactNode {
+}
+
+export default function BrowserNotices(props: BrowserStorageBannerProps | PictureNoticesProps): ReactNode {
+  return 'durability' in props ? <BrowserStorageBanner {...props} /> : <PictureNotices {...props} />;
+}
+
+function BrowserStorageBanner({ narrow, durability, onExport, onDismiss }: BrowserStorageBannerProps): ReactNode {
   const [explain, setExplain] = useState(false);
   const storageSentence = durabilitySentence(durability);
   return (
