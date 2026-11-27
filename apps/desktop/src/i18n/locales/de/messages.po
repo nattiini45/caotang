@@ -22503,6 +22503,10 @@ msgstr "Der 1. (die Standardeinstellung)"
 msgid "the account copy"
 msgstr "die Kopie im Konto"
 
+#: apps/desktop/src/app/hosted-open.ts
+msgid "The account returned a different project."
+msgstr "Das Konto hat ein anderes Projekt zurückgegeben."
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "The action did not finish: {reason}"

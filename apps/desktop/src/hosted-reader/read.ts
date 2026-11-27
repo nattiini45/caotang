@@ -18,7 +18,7 @@ export async function readHostedSnapshot({ project, origin, account, signal }: R
     attempts: 1,
     fetch: (input, init) => fetch(input, { ...init, signal, redirect: 'error', cache: 'no-store' }),
   });
-  const refuseWrite = async (): Promise<never> => { throw new TypeError('The hosted reader cannot write.'); };
+  const refuseWrite = async (): Promise<never> => { throw new TypeError('read-only-blob-store'); };
   const fs = await EncryptedRemoteArtifactFs.open({
     projectId: project.projectId,
     projectKey: project.key,
@@ -29,13 +29,13 @@ export async function readHostedSnapshot({ project, origin, account, signal }: R
   const files = new Set((await fs.listFiles(DOCS_DIR)).filter(isBodyFileName));
   const raw: unknown = JSON.parse(await fs.read(MANIFEST_FILE));
   const result = validateManifest(raw, { docFiles: [...files] });
-  if (!result.ok || result.manifest?.project.id !== project.projectId) throw new Error('Invalid hosted project manifest.');
+  if (!result.ok || result.manifest?.project.id !== project.projectId) throw new Error('invalid-project-manifest');
   return {
     manifest: result.manifest,
     async body(node: TreeNode): Promise<string> {
       signal.throwIfAborted();
       const file = bodyNamesOf(node).find((name) => files.has(name));
-      if (!file) throw new Error('The hosted document is missing.');
+      if (!file) throw new Error('missing-document');
       const text = await fs.read(`${DOCS_DIR}/${file}`);
       signal.throwIfAborted();
       if (node.type === 'dialogue') return text;

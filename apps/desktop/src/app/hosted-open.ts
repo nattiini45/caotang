@@ -16,6 +16,7 @@ import {
   type ArtifactFs,
   type RuntimeStore,
 } from '@caotang/store';
+import { t } from '@lingui/core/macro';
 import type { Opened } from './lifecycle.js';
 import { forgetHostedTarget, hostedTargetFor, installHostedTarget } from './hosted-target-registry.js';
 import type { HostedTarget } from './hosted-target.js';
@@ -84,7 +85,7 @@ export async function openHostedProject(
   // Nothing the queue holds is sent here: opening a project reads it, and the writer is told what is still on this device with the one
   // action that would send it (hosted.md §7.2). An open that replayed on its own would write to the account without being asked.
   const loaded = await readProject(target.fs);
-  if (loaded.state.manifest.project.id !== source.projectId) throw new Error('Invalid hosted project manifest.');
+  if (loaded.state.manifest.project.id !== source.projectId) throw new Error(t`The account returned a different project.`);
   loaded.state.manifest.derived.wordCounts = {};
   rebuildDerived(loaded.state);
   // The project's pictures travel with it as files among the others: the copy this browser keeps is what the session shows and what a

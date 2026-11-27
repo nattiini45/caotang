@@ -115,7 +115,7 @@ it('rejects a mismatched manifest without adopting another project or installing
   const other = project();
   expect(other.manifest.project.id).not.toBe(SOURCE.projectId);
   const target = await targetFor(other);
-  await expect(openHostedProject(store, SOURCE, async () => target)).rejects.toThrow('Invalid hosted project manifest.');
+  await expect(openHostedProject(store, SOURCE, async () => target)).rejects.toThrow('The account returned a different project.');
   expect(await listProjectIds(store)).toEqual([]);
   expect(hostedTargetFor(SOURCE.projectId)).toBeNull();
 });
