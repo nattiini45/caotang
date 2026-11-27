@@ -16,6 +16,22 @@
   overflow-y: auto;
 }
 
+.agent.is-window .agent-intent {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(3, auto);
+  row-gap: var(--space-1);
+}
+
+.agent.is-window .command-composer {
+  display: contents;
+}
+
+.agent.is-window .context-cue {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  margin: 0;
+}
+
 .context-chips {
   display: flex;
   flex-wrap: wrap;

@@ -12,14 +12,13 @@
  */
 
 :root[data-shell='modern'] .modern-companion {
-  --companion-w: 400px;
   position: absolute;
   inset-block: var(--page-top) var(--page-bottom);
   inset-inline-end: var(--page-gutter);
   z-index: 4;
   display: flex;
   flex-direction: column;
-  inline-size: min(var(--companion-w), calc(100% - 2 * var(--page-gutter)));
+  inline-size: min(var(--companion-w, 400px), calc(100% - 2 * var(--page-gutter)));
   min-block-size: 0;
   padding: var(--sheet-pad);
   border-radius: var(--radius-sheet);
@@ -92,6 +91,24 @@
 
 }
 
+@media (min-width: 960px) and (max-width: 1199px) and (min-height: 641px) {
+  :root[data-shell='modern'] .modern-stage:has(.notice-row) > .modern-companion {
+    grid-row: 2;
+    inset-block-start: 0;
+  }
+}
+
+@media (min-width: 960px) and (max-width: 1280px) and (min-height: 641px) {
+  :root[data-shell='modern'] .modern-stage:has(.modern-companion.is-open) > .modern-notices {
+    z-index: 5;
+  }
+}
+
+@media (min-width: 1200px) and (max-width: 1280px) {
+  :root[data-shell='modern'] .modern-stage:has(.modern-companion.is-open) {
+    --notice-end: calc(var(--companion-w, 400px) + var(--page-gutter));
+  }
+}
 /* A short window (a tablet with its keyboard up) has no room for the band: the sheet takes the height, over the ornaments as the narrow
    sheet does, so its composer stays inside it (#364). */
 @media (max-width: 1280px) and (max-height: 640px) {
@@ -116,6 +133,7 @@
 
 /* The header (#363): the agent name, provider and Close (×), then Mode. A running turn adds the lifecycle and Stop, with spend below. */
 :root[data-shell='modern'] .modern-companion .agent-head {
+  flex: none;
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-5);
   padding-block: 0;
@@ -135,9 +153,16 @@
 }
 
 :root[data-shell='modern'] .modern-companion .agent-head .agent-close {
-  order: 1;
+  flex: none;
   color: var(--on-glass);
   font-size: 0;
+}
+
+@media (min-width: 960px) {
+  :root[data-shell='modern'] .modern-companion .agent-head .agent-model {
+    order: 1;
+    flex-basis: 100%;
+  }
 }
 
 /* Close is an icon: the ornaments' close stroke (icons.tsx) as a mask in the button's ink; the word stays its accessible name. */
@@ -197,53 +222,13 @@
   color: var(--ink);
 }
 
-:root[data-shell='modern'] .modern-companion .goal-recovery {
-  min-block-size: 0;
-}
-
-:root[data-shell='modern'] .modern-companion .agent:has(.goal-recovery) .agent-foot {
-  flex-shrink: 0;
-}
-
-:root[data-shell='modern'] .modern-companion .agent:has(.goal-recovery) .agent-body {
-  flex: 1 1 0;
-  min-block-size: 0;
+:root[data-shell='modern'] .modern-companion .agent-body > .agent-interrupted {
+  max-block-size: none;
+  overflow: visible;
 }
 
 :root[data-shell='modern'] .modern-companion .is-goal-running {
   gap: var(--space-1);
-}
-
-:root[data-shell='modern'] .modern-companion .agent.is-goal-running .agent-body {
-  min-block-size: 5rem;
-}
-
-:root[data-shell='modern'] .modern-companion .agent-foot {
-  display: flex;
-  flex-direction: column;
-  flex: 0 1 auto;
-  min-block-size: 0;
-  padding: var(--space-2) var(--space-4);
-}
-
-:root[data-shell='modern'] .modern-companion .agent-foot .agent-intent {
-  margin: 0;
-  flex: none;
-}
-
-:root[data-shell='modern'] .modern-companion .agent-foot .composer-context {
-  flex: 0 1 auto;
-  min-block-size: 0;
-}
-
-:root[data-shell='modern'] .modern-companion .agent-foot .agent-intent input,
-:root[data-shell='modern'] .modern-companion .agent-foot .button {
-  min-block-size: var(--target-min);
-}
-
-/* In the footer the command list opens above the Intent box, inside the window. */
-:root[data-shell='modern'] .modern-companion .agent-foot .command-menu {
-  inset-block: auto calc(100% + 2px);
 }
 
 @media (forced-colors: active) {
@@ -316,17 +301,6 @@
 
 :root[data-shell='modern'] .modern-companion .plan-step-edit > .plan-params {
   padding-block-end: var(--space-4);
-}
-
-/* The body is a column so Recurring tasks, one folded line, sits under the turns (the drawer keeps it above them). */
-:root[data-shell='modern'] .modern-companion .agent-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  flex: 1 0 14rem;
-  min-block-size: 14rem;
-  overflow-y: auto;
-  padding: var(--space-4) var(--space-5);
 }
 
 :root[data-shell='modern'] .modern-companion .agent-body > * {

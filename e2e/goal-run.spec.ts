@@ -346,8 +346,16 @@ for (const shell of ['classic', 'modern'] as const) {
       if (locale === 'de') {
         const appearance = await start.evaluate((button) => {
           const style = getComputedStyle(button);
+          const canvas = document.createElement('canvas');
+          canvas.width = canvas.height = 1;
+          const context = canvas.getContext('2d')!;
           const luminance = (color: string) => {
-            const channels = color.match(/[\d.]+/g)!.slice(0, 3).map((part) => Number(part) / 255).map((part) => part <= 0.04045 ? part / 12.92 : ((part + 0.055) / 1.055) ** 2.4);
+            context.clearRect(0, 0, 1, 1);
+            context.fillStyle = color;
+            context.fillRect(0, 0, 1, 1);
+            const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data;
+            if (alpha !== 255) throw new Error(`Expected an opaque button color, got ${color}`);
+            const channels = [red!, green!, blue!].map((part) => part / 255).map((part) => part <= 0.04045 ? part / 12.92 : ((part + 0.055) / 1.055) ** 2.4);
             return channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722;
           };
           const foreground = luminance(style.color);

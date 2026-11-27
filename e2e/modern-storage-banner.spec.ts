@@ -11,7 +11,7 @@ import { test as tagged } from './test.js';
  */
 
 /** A German Modern project whose browser has not promised to keep this site's storage, with the banner still up. */
-async function germanProjectWithBanner(page: Page): Promise<void> {
+async function germanProjectWithBanner(page: Page, chooseGerman = true): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem('caotang.interface', 'modern');
     const storage = Object.getPrototypeOf(navigator.storage) as Record<string, unknown>;
@@ -19,12 +19,14 @@ async function germanProjectWithBanner(page: Page): Promise<void> {
     storage['persist'] = async () => false;
   });
   await page.goto('/');
-  await page.getByTestId('open-settings').click();
-  const settings = page.getByTestId('settings');
-  await settings.locator('[data-section="appearance"]').click();
-  await chooseInterfaceLanguage(page, settings, 'de');
+  if (chooseGerman) {
+    await page.getByTestId('open-settings').click();
+    const settings = page.getByTestId('settings');
+    await settings.locator('[data-section="appearance"]').click();
+    await chooseInterfaceLanguage(page, settings, 'de');
+  }
   await expect.poll(() => page.evaluate(() => document.documentElement.lang)).toBe('de');
-  if (await settings.isVisible()) await page.keyboard.press('Escape');
+  if (chooseGerman && await page.getByTestId('settings').isVisible()) await page.keyboard.press('Escape');
   await page.getByLabel('Projektname', { exact: true }).fill('Kodex Notizen');
   await page.getByRole('button', { name: 'Projekt erstellen', exact: true }).click();
   await expect(page.getByTestId('storage-banner')).toBeVisible();
@@ -94,3 +96,70 @@ for (const width of [1280, 390]) {
     await expect(page.getByTestId('storage-banner').getByRole('button', { name: 'Ein Backup exportieren' })).toBeInViewport();
   });
 }
+
+test.describe('German Modern studio at 150% display scaling', () => {
+  test.use({ deviceScaleFactor: 1.5, locale: 'de-DE', reducedMotion: 'reduce' });
+
+  for (const [width, height] of [[1280, 800], [1600, 900], [1920, 1080], [3840, 2160]] as const) {
+    tagged(`keeps the banner, panel header and composer reachable at ${width}×${height}`, { tag: '@modern' }, async ({ page }) => {
+      test.setTimeout(60_000);
+      await page.setViewportSize({ width, height });
+      await germanProjectWithBanner(page, false);
+      await page.getByTestId('modern-bottom-ornament').getByRole('radio', { name: 'Bilder', exact: true }).click();
+      await page.getByTestId('modern-binder-bar').getByRole('button', { name: 'Binder', exact: true }).click();
+      await page.getByTestId('modern-sidebar').locator('.modern-sidebar-pin').click();
+      await page.keyboard.press('ControlOrMeta+j');
+      const panel = page.locator('#modern-companion');
+      await expect(panel.locator('.agent-foot')).toBeVisible();
+      await page.getByTestId('storage-banner').getByRole('button', { name: 'Ein Backup exportieren' }).click({ trial: true });
+
+      const bounds = await page.evaluate(() => {
+        const box = (selector: string): DOMRect => {
+          const element = document.querySelector(selector);
+          if (element === null) throw new Error(`Missing ${selector}`);
+          return element.getBoundingClientRect();
+        };
+        const agent = box('#modern-companion');
+        const footer = box('.agent-foot');
+        const form = box('.agent-foot .agent-intent');
+        const nav = box('.modern-ornament.is-bottom');
+        const navChildren = [...document.querySelectorAll('.modern-ornament.is-bottom .modern-capsule')];
+        const title = document.querySelector('.modern-title-name');
+        const banner = box('[data-testid="storage-banner"]');
+        return {
+          bannerClear: banner.left >= box('.modern-sidebar').right && (banner.right <= agent.left || banner.bottom <= agent.top),
+          titleFits: title !== null && title.scrollWidth <= title.clientWidth + 1,
+          footerInside: form.top >= footer.top && form.bottom <= footer.bottom && footer.bottom <= agent.bottom,
+          noNavOverlap: (agent.left >= nav.right || agent.bottom <= nav.top)
+            && navChildren.every((control) => control.getBoundingClientRect().right <= nav.right),
+          chatWidth: agent.width,
+          transcriptHeight: box('.agent-body').height,
+          pageWidth: box('.modern-page').width,
+        };
+      });
+      expect(bounds).toMatchObject({ bannerClear: true, titleFits: true, footerInside: true, noNavOverlap: true });
+      expect(bounds.transcriptHeight).toBeGreaterThan(160);
+      if (width === 3840) {
+        expect(bounds.chatWidth).toBeGreaterThan(700);
+        expect(bounds.pageWidth).toBeGreaterThan(1500);
+      }
+
+      const close = panel.getByTestId('agent-close');
+      const headerPosition = await close.boundingBox();
+      await panel.locator('.agent-body').evaluate((body) => { body.scrollTop = body.scrollHeight; });
+      expect(await close.boundingBox()).toEqual(headerPosition);
+      if (width === 1280) {
+        await panel.getByRole('button', { name: 'Ziel', exact: true }).click();
+        const back = panel.getByRole('button', { name: 'Zur Einzelrunde' });
+        await expect(back).toBeInViewport();
+        const backPosition = await back.boundingBox();
+        await panel.locator('.goal-composer-fields').evaluate((fields) => { fields.scrollTop = fields.scrollHeight; });
+        expect(await back.boundingBox()).toEqual(backPosition);
+        await back.click();
+        await expect(panel.locator('.agent-foot')).toBeVisible();
+      }
+      await close.click();
+      await expect(panel).toBeHidden();
+    });
+  }
+});

@@ -55,10 +55,6 @@
           "hash": "6e10c440",
           "anchor": "wissen"
         },
-        "agent-instructions-and-memory": {
-          "hash": "ba9699e8",
-          "anchor": "anweisungen-und-gedächtnis-des-agenten"
-        },
         "skills": {
           "hash": "c8df6afe",
           "anchor": "skills"
@@ -68,7 +64,7 @@
           "anchor": "makros"
         },
         "caotang-for-desktop": {
-          "hash": "f11f4c8c",
+          "hash": "465ed80d",
           "anchor": "caotang-für-desktop"
         },
         "using-caotang-on-a-phone-or-tablet": {

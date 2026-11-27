@@ -129,8 +129,8 @@ export interface OsIntegration {
   publish(state: NativeShellState): void;
   /** Tells the page the window was hidden to the tray, or is in front again. */
   setWindowState(state: NativeWindowState): void;
-  /** Whether the app can hide its window: a tray exists to bring it back, so closing must not end it. */
-  staysInTray(): boolean;
+  /** The first-hide notice, only when there is an opted-in tray that can bring the window back. */
+  trayNotice(): string | undefined;
 }
 
 export function registerOsIpc(options: OsOptions): OsIntegration {
@@ -173,8 +173,10 @@ export function registerOsIpc(options: OsOptions): OsIntegration {
   }
 
   const publish = (state: NativeShellState): void => {
-    const next: NativeShellState = { labels: state.labels, status: state.status, project: state.project === true };
+    const trayNotice = typeof state.trayNotice === 'string' && state.trayNotice !== '' ? state.trayNotice : undefined;
+    const next: NativeShellState = { labels: state.labels, status: state.status, project: state.project === true, ...(trayNotice === undefined ? {} : { trayNotice }) };
     const first = published === null;
+    const trayChanged = (published?.trayNotice !== undefined) !== (trayNotice !== undefined);
     // Rebuilt when the words change or when a project opening changes what the items can do; not for the tray's status line,
     // which would rebuild the menu under the writer's cursor.
     const redraw = first || published?.project !== next.project || JSON.stringify(published?.labels) !== JSON.stringify(next.labels);
@@ -186,10 +188,13 @@ export function registerOsIpc(options: OsOptions): OsIntegration {
       hang(template);
       Menu.setApplicationMenu(Menu.buildFromTemplate(template));
     }
-    if (first) {
-      // The tray is made on the page's first publish, because its words are the page's: until then closing the window ends the
-      // app, as it did before there was a tray.
-      tray = installTray({ open: options.show, quit: options.quit });
+    if (trayChanged) {
+      if (trayNotice === undefined) {
+        tray?.destroy();
+        tray = null;
+      } else {
+        tray = installTray({ open: options.show, quit: options.quit });
+      }
     }
     tray?.update({ labels: next.labels, status: next.status });
   };
@@ -231,6 +236,6 @@ export function registerOsIpc(options: OsOptions): OsIntegration {
       windowState = state;
       page()?.webContents.send('os:window-state', state);
     },
-    staysInTray: () => tray !== null,
+    trayNotice: () => tray === null ? undefined : published?.trayNotice,
   };
 }

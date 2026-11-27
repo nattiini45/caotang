@@ -15,6 +15,28 @@ async function openSettings(page: Page): Promise<ReturnType<Page['getByTestId']>
   return page.getByTestId('settings');
 }
 
+for (const shell of ['classic', 'modern'] as const) {
+  test(`${shell}: the Settings header stays in place while provider settings scroll`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 600 });
+    await page.addInitScript((value) => localStorage.setItem('caotang.interface', value), shell);
+    await page.goto('/');
+    const settings = await openSettings(page);
+    const close = settings.getByRole('button', { name: 'Close', exact: true });
+    await close.click({ trial: true });
+    const before = await close.boundingBox();
+    const scroll = await settings.locator('.settings-body').evaluate((body) => {
+      body.scrollTop = body.scrollHeight;
+      const dialog = body.closest('dialog');
+      return { content: body.scrollTop, frame: dialog === null ? null : getComputedStyle(dialog).overflowY };
+    });
+    expect(scroll.content).toBeGreaterThan(0);
+    expect(scroll.frame).toBe('clip');
+    expect(await close.boundingBox()).toEqual(before);
+    await close.click();
+    await expect(settings).toBeHidden();
+  });
+}
+
 test('the demo profile can be renamed and saved, with no key', async ({ page }) => {
   await page.goto('/');
   const settings = await openSettings(page);

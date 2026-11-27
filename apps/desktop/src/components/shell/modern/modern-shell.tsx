@@ -26,7 +26,7 @@ import { ChunkLoadError, LazyBoundary, lazyView } from '../../lazy-view.js';
 import { OpenOnDesktop } from '../../narrow.js';
 import { DocumentModeProvider } from '../../DocumentModes.js';
 import type { ShellRegions } from '../regions.js';
-import { modernLayout, type ModernView } from './layout.js';
+import { GUTTER, modernLayout, type ModernView } from './layout.js';
 import { installMorph, morphPage } from './morph.js';
 import { useSceneInfo } from './scene-info-store.js';
 import { currentBinderPinned, subscribeBinderPinned, type SidebarTab } from './sidebar-model.js';
@@ -115,6 +115,7 @@ export function ModernShell({
   const bar = slots.sidebar !== null && !view.narrow;
   const layout = modernLayout({ viewport: size, view: current, sidebar: bar && pinned, binderBar: bar, agent, info });
   const placed = geometry ?? layout.geometry;
+  const ornamentWidth = size.width - (placed.areaStart ?? 0) - (placed.areaEnd ?? 0) - 2 * GUTTER;
   // Focus mode (§8.8) fades the ornaments, the binder, Scene info and the agent window rather than taking them away (focus-mode.tsx), so
   // they get the view as if the rails were shown; the page keeps focus mode's room above.
   const chrome: ShellRegions = view.hideRails ? { ...regions, view: { ...view, hideRails: false } } : regions;
@@ -126,7 +127,7 @@ export function ModernShell({
 
   return (
     <DocumentModeProvider>
-      <Stage sidebar={sidebar} geometry={placed}>
+      <Stage sidebar={sidebar} geometry={placed} compactOrnaments={!layout.narrow && (placed.areaEnd ?? 0) > 0 && ornamentWidth < 944}>
         <a className="modern-skip" href={`#${PAGE_ID}`} onClick={skip}>
           <Trans>Skip to the page</Trans>
         </a>

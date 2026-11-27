@@ -26,7 +26,7 @@
  *   area (`env(safe-area-inset-*)`) is the stylesheet's to add: a pure function cannot read it.
  */
 
-import { COMPANION_WIDTH, companionAreaEnd } from './companion-model.js';
+import { COMPANION_WIDTH, companionAreaEnd, companionWidth } from './companion-model.js';
 import type { StageGeometry } from './geometry.js';
 
 /** The page's views: the three of the bottom ornament, and the two Classic centre views reached from **⋯**. */
@@ -88,6 +88,11 @@ export const VIEW_WIDTH: Readonly<Record<ModernView, number>> = {
   timeline: 1120,
   pictures: 1120,
 };
+
+export function viewWidth(view: ModernView, viewportWidth: number): number {
+  const base = VIEW_WIDTH[view];
+  return base + Math.min(base * 0.55, Math.round(Math.max(0, viewportWidth - 1920) * 0.34));
+}
 
 export const NARROW_BELOW = 960;
 /** From this width down the windows overlap the page. */
@@ -153,7 +158,7 @@ export function modernLayout({ viewport, view, sidebar, binderBar = false, agent
 
   const areaWidth = Math.max(0, width - areaStart - areaEnd);
   // Narrow: full-bleed with the small margin, whatever width the view would ask for.
-  const pageWidth = Math.max(0, narrow ? areaWidth - 2 * gutter : Math.min(VIEW_WIDTH[view], areaWidth - 2 * gutter));
+  const pageWidth = Math.max(0, narrow ? areaWidth - 2 * gutter : Math.min(viewWidth(view, width), areaWidth - 2 * gutter));
   const pageStart = areaStart + (areaWidth - pageWidth) / 2;
   const centre = pageStart + pageWidth / 2;
 
@@ -161,7 +166,8 @@ export function modernLayout({ viewport, view, sidebar, binderBar = false, agent
     const w = Math.max(0, Math.min(size, width - 2 * gutter));
     return { start: round(end - w), top: pageTop, width: round(w), height: columnHeight };
   };
-  const agentBox = agent ? sheet(AGENT_WIDTH, width - gutter) : null;
+  const agentWidth = companionWidth(width);
+  const agentBox = agent ? sheet(agentWidth, width - gutter) : null;
   // Stacked: Scene info sits beside the agent window, never under it. In a narrow window both are sheets over the whole page (#312).
   const infoBox = info ? sheet(INFO_WIDTH, agentBox === null || narrow ? width - gutter : agentBox.start - gutter) : null;
   const infoEnd = infoBox === null ? gutter : width - (infoBox.start + infoBox.width);
@@ -181,6 +187,9 @@ export function modernLayout({ viewport, view, sidebar, binderBar = false, agent
     info: infoBox,
     overlay,
     sheets,
-    geometry: { pageWidth: round(pageWidth), pageTop, pageBottom, areaStart, areaEnd, infoEnd },
+    geometry: {
+      pageWidth: round(pageWidth), pageTop, pageBottom, areaStart, areaEnd, infoEnd,
+      ...(agentWidth === AGENT_WIDTH ? {} : { companionWidth: agentWidth }),
+    },
   };
 }

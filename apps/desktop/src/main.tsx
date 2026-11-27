@@ -41,4 +41,5 @@ const render = (): void => {
     </StrictMode>,
   );
 };
-initInterface().then(render, render);
+const desktopStyles = window.caotangDesktop === undefined ? undefined : import('./desktop-scrollbars.css');
+void Promise.allSettled([initInterface(), desktopStyles]).then(render);

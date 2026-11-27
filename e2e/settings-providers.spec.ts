@@ -26,6 +26,53 @@ async function openSettings(page: Page): Promise<ReturnType<Page['getByTestId']>
   return page.getByTestId('settings');
 }
 
+test('removing a provider names it and leaves its stored key alone until confirmed', async ({ page }) => {
+  await fakeEndpoint(page, planThenAnswer({ reply: 'unused' }));
+  const settings = await openSettings(page);
+  await addCustomEndpoint(settings, { name: 'Harbor Provider', key: 'fixture-only-key' });
+  const profileId = (await storedProfiles(page)).find((profile) => profile['name'] === 'Harbor Provider')?.['id'];
+  if (typeof profileId !== 'string') throw new Error('The provider fixture was not saved.');
+  const hasKey = (): Promise<boolean> => page.evaluate(async (id) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('caotang-provider-keys');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      return await new Promise<boolean>((resolve, reject) => {
+        const request = db.transaction('entries').objectStore('entries').count(id);
+        request.onsuccess = () => resolve(request.result === 1);
+        request.onerror = () => reject(request.error);
+      });
+    } finally {
+      db.close();
+    }
+  }, profileId);
+  expect(await hasKey()).toBe(true);
+  const trigger = settings.getByRole('button', { name: 'Remove Harbor Provider', exact: true });
+  const confirmation = page.getByRole('alertdialog', { name: /Remove provider .*Harbor Provider/ });
+
+  await trigger.press('Enter');
+  await expect(confirmation).toBeVisible();
+  await expect(confirmation.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await expect(confirmation).toHaveAccessibleDescription('This removes the provider profile and its stored key.');
+  expect(await confirmation.evaluate((dialog) => {
+    const box = dialog.getBoundingClientRect();
+    return Math.abs(box.x + box.width / 2 - window.innerWidth / 2) < 2;
+  })).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(settings).toBeVisible();
+  await expect(trigger).toBeFocused();
+  expect((await storedProfiles(page)).some((profile) => profile['name'] === 'Harbor Provider')).toBe(true);
+  expect(await hasKey()).toBe(true);
+
+  await trigger.click();
+  await confirmation.getByRole('button', { name: 'Remove provider', exact: true }).click();
+  await expect(trigger).toHaveCount(0);
+  await expect.poll(async () => (await storedProfiles(page)).some((profile) => profile['name'] === 'Harbor Provider')).toBe(false);
+  expect(await hasKey()).toBe(false);
+});
+
 /** The profile records as the app's IndexedDB persists them (the `kv` store's 'profiles' value). */
 async function storedProfiles(page: Page): Promise<Record<string, unknown>[]> {
   return page.evaluate(async () => {
