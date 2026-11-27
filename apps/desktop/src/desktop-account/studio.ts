@@ -1,6 +1,7 @@
 import type { HostedProjectHandoff } from '../app/hosted-receiver.js';
 import { createHostedProjectReceiver } from '../app/hosted-receiver.js';
 import { ACCOUNT_ORIGIN, bridge, createAccountFetch } from './transport.js';
+import './studio.css';
 
 export interface AccountStudioHandoff {
   readonly kind: 'account-project';
