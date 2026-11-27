@@ -336,7 +336,7 @@ function outermostTextBoxes(element: XmlElement): XmlElement[] {
 
 /** Every text box nested anywhere under a drawing, a legacy picture or an object. */
 function nestedTextBoxes(element: XmlElement, state: WalkState, inherited: RunStyle, deleting: boolean): string {
-  return outermostTextBoxes(element).map((box) => textBox(box, state, inherited, deleting)).join('');
+  return outermostTextBoxes(element).map((box) => textBox(box, state, inherited, deleting)).join('\n\n');
 }
 
 /** Descendants with a local name, skipping anything inside a text box the recursive run renderer already owns. */
@@ -669,7 +669,7 @@ export async function readDocxZip(bytes: Uint8Array, options: DocxOptions = {}):
     }
     const read = await readDocxArchive(inner.value, { ...options, unit: path, refPrefix: `import:docx-image-${index + 1}-` });
     if (!read.ok) {
-      skip(read.error.kind === 'not-docx' ? 'is not a Word document' : 'could not be read');
+      skip(read.error.kind === 'not-docx' ? 'is not a Word document' : read.error.kind === 'empty' ? 'has no importable text' : 'could not be read');
       continue;
     }
     const offset = merged.document.blocks.length;
@@ -689,7 +689,7 @@ export async function readDocxZip(bytes: Uint8Array, options: DocxOptions = {}):
   }
   if (merged.document.blocks.length === 0) {
     const skipped = (merged.document.losses ?? []).map((loss) => loss.message ?? '').filter((message) => message !== '');
-    return { ok: false, error: { kind: 'empty', ...(skipped.length === 0 ? {} : { message: `No Word file in the batch could be read. ${skipped.join(' ')}` }) } };
+    return { ok: false, error: { kind: 'empty', ...(skipped.length === 0 ? {} : { message: `No Word file in the batch contained importable text. ${skipped.join(' ')}` }) } };
   }
   return { ok: true, value: merged };
 }

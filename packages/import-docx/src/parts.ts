@@ -6,7 +6,7 @@
 import { escapeInline, escapeLineStarts } from '@caotang/import-core';
 import { attr, readXml, textOf, type XmlElement } from '@caotang/import-read/xml';
 
-/** Word text can arrive in fragments; escape every source tilde so fragments cannot join into strike syntax. */
+/** Word text can arrive in fragments; escape every source character Markdown reads only in context, so fragments cannot join into syntax. */
 export function escapeDocxInline(text: string): string {
   const escaped = escapeInline(text);
   let out = '';
@@ -17,7 +17,7 @@ export function escapeDocxInline(text: string): string {
       index += 1;
       continue;
     }
-    out += ch === '~' ? '\\~' : ch;
+    out += ch === '_' || ch === '~' || ch === '<' || ch === '&' ? `\\${ch}` : ch;
   }
   return out;
 }

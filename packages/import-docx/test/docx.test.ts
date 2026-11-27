@@ -268,6 +268,16 @@ describe('notes, comments and pictures (#279)', () => {
     expect(heading?.kind === 'heading' ? heading.md : '').toBe('# \\*door\\* \\[name\\](target)');
   });
 
+  it('keeps entity-looking source text literal across Word text fragments', async () => {
+    const fragmented = '<w:p><w:r><w:t>&amp;amp</w:t><w:t>;</w:t></w:r></w:p>';
+    const read = await readDocx(docx({ body: fragmented }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const para = read.value.document.blocks[0];
+    expect(para?.kind === 'para' ? para.md : '').toBe('\\&amp;');
+    expect(para?.kind === 'para' ? para.text : '').toBe('&amp;');
+  });
+
   it('keeps strike-looking source text literal across Word text fragments', async () => {
     const fragmented = '<w:p><w:r><w:t>~</w:t><w:t>~deleted~</w:t><w:t>~</w:t></w:r></w:p>';
     const read = await readDocx(docx({ body: fragmented }));
@@ -294,7 +304,7 @@ describe('notes, comments and pictures (#279)', () => {
     expect(read.ok).toBe(true);
     if (!read.ok) return;
     const para = read.value.document.blocks.find((block) => block.kind === 'para');
-    expect(para?.kind === 'para' ? para.text : '').toBe('First boxSecond box');
+    expect(para?.kind === 'para' ? para.text : '').toBe('First box\n\nSecond box');
   });
 
   it('flattens a text box nested inside another text box once', async () => {
@@ -374,6 +384,29 @@ describe('refusals and batches (#279)', () => {
     const skipped = batch.value.document.losses?.filter((loss) => loss.code === 'unsupported').map((loss) => loss.message ?? '') ?? [];
     expect(skipped.some((message) => message.includes('broken.docx'))).toBe(true);
     expect(skipped.some((message) => message.includes('not-word.docx'))).toBe(true);
+  });
+
+  it('names a valid empty member as having no importable text', async () => {
+    const batch = await readDocxZip(rawZip([
+      { name: 'empty.docx', data: docx({ body: '' }) },
+      { name: 'filled.docx', data: docx({ body: p('The ferry came.') }) },
+    ]));
+    expect(batch.ok).toBe(true);
+    if (!batch.ok) return;
+    expect(batch.value.document.blocks).toHaveLength(1);
+    const skipped = batch.value.document.losses?.filter((loss) => loss.code === 'unsupported').map((loss) => loss.message ?? '') ?? [];
+    expect(skipped.some((message) => message.includes('empty.docx') && message.includes('no importable text'))).toBe(true);
+    expect(skipped.some((message) => message.includes('empty.docx') && message.includes('could not be read'))).toBe(false);
+  });
+
+  it('says no batch member contained importable text when every valid member is empty', async () => {
+    const batch = await readDocxZip(rawZip([{ name: 'empty.docx', data: docx({ body: '' }) }]));
+    expect(batch.ok).toBe(false);
+    if (batch.ok) return;
+    const message = batch.error.kind === 'empty' ? batch.error.message ?? '' : '';
+    expect(message).toContain('contained importable text');
+    expect(message).toContain('empty.docx');
+    expect(message).not.toContain('could not be read');
   });
 
   it('names every member when no file in a batch zip can be read', async () => {
