@@ -333,7 +333,12 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: var(--space-4) var(--space-5);
-  font-size: clamp(1rem, calc(0.85rem + 0.16vw), 1.25rem);
+}
+
+@media (min-width: 1921px) {
+  :root[data-shell='modern'] .modern-companion :is(.agent-body, .agent-report, .agent-turn-head, .agent-stream) {
+    font-size: clamp(1rem, 0.85rem + 0.16vw, 1.25rem);
+  }
 }
 
 :root[data-shell='modern'] .modern-companion .agent-body > * {

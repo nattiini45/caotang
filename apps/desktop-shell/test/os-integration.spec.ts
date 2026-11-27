@@ -237,10 +237,11 @@ test('closing the window quits after the studio is ready, unless the writer opts
     const page = await electron.firstWindow();
     await expect(page.getByRole('textbox', { name: 'Project name' })).toBeVisible();
     await expect.poll(async () => menuItems(electron).then((items) => items.length)).toBeGreaterThan(4);
+    const process = electron.process();
     const closed = electron.waitForEvent('close');
     void electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close()).catch(() => undefined);
     await closed;
-    expect(electron.process().exitCode).toBe(0);
+    expect(process.exitCode).toBe(0);
   } finally {
     await closeShell(electron);
   }

@@ -217,7 +217,8 @@ MCP controls await their settings mutation, prevent repeated actions while savin
 
 *(§5.3: the Data section additionally carries the browser-storage persistence row + eviction-risk banner per the posture below.)*
 
-Settings has one vertical scroller for its content, with its Close button in a separate header. Removing a provider opens a UI SDK
+Settings has one vertical scroller for its content, with its Close button in a separate header. When the dialog is short or narrow,
+the section navigation moves to a horizontal strip so all sections remain reachable. Removing a provider opens a UI SDK
 alert dialog that names the profile and explains that its stored key is removed too. No removal happens until confirmation.
 
 ### 5.3 Browser-storage persistence

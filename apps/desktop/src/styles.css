@@ -2508,6 +2508,7 @@ dialog.confirm:has(.folder-file-preview) {
   height: min(800px, 92vh);
   max-height: none;
   padding: 0;
+  container-type: size;
   overflow: clip;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
@@ -2577,6 +2578,31 @@ dialog.confirm:has(.folder-file-preview) {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: var(--space-6) 20px 28px;
+}
+
+@container (max-height: 560px) or (max-width: 959px) {
+  .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .settings-nav {
+    flex-flow: row nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x;
+    border-inline-end: none;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .settings-nav-item {
+    flex: none;
+    white-space: nowrap;
+    scroll-snap-align: start;
+  }
+
+  .settings-nav .is-current {
+    border-radius: 999px;
+  }
 }
 
 .settings-section h3 {
@@ -4262,29 +4288,6 @@ label.settings-check {
     height: 100dvh;
     max-height: none;
     border-radius: 0;
-  }
-
-  dialog.settings .settings-layout {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-
-  .settings-nav {
-    flex-flow: row nowrap;
-    overflow-x: auto;
-    scroll-snap-type: x;
-    border-inline-end: none;
-    border-bottom: 1px solid var(--line);
-  }
-
-  .settings-nav-item {
-    flex: none;
-    white-space: nowrap;
-    scroll-snap-align: start;
-  }
-
-  .settings-nav .is-current {
-    border-radius: 999px;
   }
 
   dialog.settings .settings-body {
