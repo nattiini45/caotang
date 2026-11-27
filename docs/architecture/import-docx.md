@@ -22,7 +22,7 @@ copied. There is no `eval`, `new Function` or WebAssembly in the chain, and the 
 
 A `.docx` that is not a zip, or a zip with no `word/document.xml`, is refused with a plain message. A zip **of** `.docx` files is
 read as a batch: one unit per file, so the splitter makes a chapter per file. A member that cannot be read, opened or parsed is
-named as a loss before confirmation, so an incomplete batch is never offered as complete. When no member can be read, the refusal names every skipped file.
+named as a loss before confirmation, so an incomplete batch is never offered as complete. When no member yields importable text, the refusal names every skipped file and its reason.
 
 ## 2. Paragraphs and signals
 
@@ -68,8 +68,9 @@ and its date.
 
 ## 5. Pictures, tables and what is dropped
 
-`w:drawing` (and legacy `w:pict`) resolve `r:embed` through the relationships to `word/media/…`. PNG, JPEG, GIF and WebP come in as
-`import:docx-image-<n>` with the alt text from `wp:docPr/@descr`; **EMF/WMF are listed and skipped**, and **SVG is refused** (the
+`w:drawing` (and legacy `w:pict`) resolve `r:embed` through the relationships to `word/media/…`, including pictures inside a
+grouped drawing. PNG, JPEG, GIF and WebP come in as `import:docx-image-<n>` with the alt text from the picture shape's label
+(`wp:docPr` or `pic:cNvPr`); **EMF/WMF are listed and skipped**, and **SVG is refused** (the
 picture registry's rule). A paragraph holding only pictures emits every placement in document order, each reference paired with
 its own alt text. A batch gives each file its own ref namespace.
 
@@ -90,4 +91,4 @@ in the preview's `'self'` Worker with a timeout and Cancel. Every imported text 
 `packages/import-docx/test` builds synthetic `.docx` zips: heading styles and a `basedOn` chain, a Shunn manuscript (centred
 "Chapter One" and `#` breaks), a Google Docs export, German style names, a TOC field, tracked changes in all three modes, footnotes,
 endnotes, comments, literal Markdown punctuation beside real formatting, a list, a quote, a table, direct and nested text boxes,
-a PNG, two pictures in one picture-only paragraph, an EMF and an SVG, a `javascript:` link, and a batch zip with unreadable members.
+a PNG, two pictures in one picture-only paragraph, grouped drawings with pictures and text boxes, an EMF and an SVG, a `javascript:` link, and a batch zip with unreadable members.

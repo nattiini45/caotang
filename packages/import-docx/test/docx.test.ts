@@ -259,6 +259,38 @@ describe('notes, comments and pictures (#279)', () => {
     expect(read.value.document.assets?.map((asset) => asset.name)).toEqual(['first.png', 'second.png']);
   });
 
+  it('keeps a grouped drawing’s text boxes and picture placements in document order', async () => {
+    const pic = (id: string, alt: string): string =>
+      `<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${id}" descr="${alt}"/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId${id}"/></pic:blipFill></pic:pic>`;
+    const boxed = '<wps:wsp xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wps:txbx><w:txbxContent><w:p><w:r><w:t>Grouped box</w:t></w:r></w:p></w:txbxContent></wps:txbx></wps:wsp>';
+    const group = `<wpg:wgp xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"><wpg:cNvGrpSpPr/><wpg:grpSpPr/>${pic('1', 'First grouped')}${boxed}${pic('2', 'Second grouped')}</wpg:wgp>`;
+    const body = `<w:p><w:r><w:drawing><wp:inline><a:graphic><a:graphicData>${group}</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+    const rels =
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/first.png"/>' +
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/second.png"/>';
+    const read = await readDocx(docx({ body, rels, media: { 'first.png': PNG, 'second.png': PNG } }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const para = read.value.document.blocks[0];
+    expect(para?.kind === 'para' ? para.md : '').toBe('![First grouped](import:docx-image-1)Grouped box![Second grouped](import:docx-image-2)');
+  });
+
+  it('keeps every picture shape inside a grouped picture-only drawing', async () => {
+    const pic = (id: string, alt: string): string =>
+      `<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${id}" descr="${alt}"/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId${id}"/></pic:blipFill></pic:pic>`;
+    const group = `<wpg:wgp xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"><wpg:cNvGrpSpPr/><wpg:grpSpPr/>${pic('1', 'First grouped')}${pic('2', 'Second grouped')}</wpg:wgp>`;
+    const body = `<w:p><w:r><w:drawing><wp:inline><a:graphic><a:graphicData>${group}</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+    const rels =
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/first.png"/>' +
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/second.png"/>';
+    const read = await readDocx(docx({ body, rels, media: { 'first.png': PNG, 'second.png': PNG } }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const images = read.value.document.blocks.filter((block) => block.kind === 'image');
+    expect(images.map((block) => (block.kind === 'image' ? block.alt : ''))).toEqual(['First grouped', 'Second grouped']);
+    expect(read.value.document.assets?.map((asset) => asset.name)).toEqual(['first.png', 'second.png']);
+  });
+
   it('keeps literal punctuation plain in a heading title and escaped only in its Markdown', async () => {
     const read = await readDocx(docx({ styles: STYLES, body: p('*door* [name](target)', 'Heading1') }));
     expect(read.ok).toBe(true);

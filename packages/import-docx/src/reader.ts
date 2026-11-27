@@ -252,8 +252,7 @@ function renderRuns(element: XmlElement, state: WalkState, inherited: RunStyle, 
           }
           state.openComments.delete(id);
         } else if (name === 'drawing' || name === 'pict' || name === 'object') {
-          text += nestedTextBoxes(part, state, inherited, deleting);
-          text += imageOf(part, state);
+          text += drawingContent(part, state, inherited, deleting);
         } else if (name === 'txbxContent') {
           text += textBox(part, state, inherited, deleting);
         }
@@ -317,52 +316,53 @@ function textBox(element: XmlElement, state: WalkState, inherited: RunStyle, del
   return kids(element, 'p').map((paragraph) => renderRuns(paragraph, state, inherited, deleting)).join('\n\n');
 }
 
-/** Every outermost text box nested anywhere under a drawing, a legacy picture or an object, in document order. */
-function outermostTextBoxes(element: XmlElement): XmlElement[] {
-  const found: XmlElement[] = [];
+/** The parent of every element below a drawing, so a picture can take the label of its own shape. */
+function parentMap(element: XmlElement): Map<XmlElement, XmlElement> {
+  const parents = new Map<XmlElement, XmlElement>();
   const walk = (current: XmlElement): void => {
     for (const child of current.children) {
       if (child.type !== 'element') continue;
-      if (child.local === 'txbxContent') {
-        found.push(child);
-        continue;
-      }
+      parents.set(child, current);
       walk(child);
     }
   };
   walk(element);
-  return found;
+  return parents;
 }
 
-/** Every text box nested anywhere under a drawing, a legacy picture or an object. */
-function nestedTextBoxes(element: XmlElement, state: WalkState, inherited: RunStyle, deleting: boolean): string {
-  return outermostTextBoxes(element).map((box) => textBox(box, state, inherited, deleting)).join('\n\n');
+/** The first picture element below a shape, in document order. */
+function firstImage(element: XmlElement): XmlElement | undefined {
+  for (const child of element.children) {
+    if (child.type !== 'element') continue;
+    if (child.local === 'blip' || child.local === 'imagedata') return child;
+    const found = firstImage(child);
+    if (found !== undefined) return found;
+  }
+  return undefined;
 }
 
-/** Descendants with a local name, skipping anything inside a text box the recursive run renderer already owns. */
-function descendantsOutsideTextBoxes(element: XmlElement, local: string): XmlElement[] {
-  const found: XmlElement[] = [];
-  const walk = (current: XmlElement): void => {
-    for (const child of current.children) {
-      if (child.type !== 'element') continue;
-      if (child.local === 'txbxContent') continue;
-      if (child.local === local) found.push(child);
-      walk(child);
+/** The alt text the shape owning this picture gives it, or an empty string. */
+function imageAlt(image: XmlElement, parents: ReadonlyMap<XmlElement, XmlElement>): string {
+  let current = image;
+  let parent = parents.get(current);
+  while (parent !== undefined) {
+    if (firstImage(parent) === image) {
+      const labelled = descendants(parent, 'docPr')[0] ?? descendants(parent, 'cNvPr')[0];
+      const alt = labelled === undefined ? '' : (attr(labelled, 'descr') ?? attr(labelled, 'title') ?? '');
+      if (alt !== '') return alt;
     }
-  };
-  walk(element);
-  return found;
+    current = parent;
+    parent = parents.get(current);
+  }
+  return '';
 }
 
-/** A drawing or a legacy picture: its ref, or nothing when it cannot come in. */
-function imageOf(element: XmlElement, state: WalkState): string {
-  const blip = descendantsOutsideTextBoxes(element, 'blip')[0] ?? descendantsOutsideTextBoxes(element, 'imagedata')[0];
-  if (blip === undefined) return '';
-  const id = attr(blip, 'embed', R) ?? attr(blip, 'id', R);
+/** A picture element: its ref, or nothing when it cannot come in. */
+function imageOf(image: XmlElement, state: WalkState, parents: ReadonlyMap<XmlElement, XmlElement>): string {
+  const id = attr(image, 'embed', R) ?? attr(image, 'id', R);
   const rel = id === undefined ? undefined : state.rels.get(id);
   if (rel === undefined) return '';
-  const docPr = descendants(element, 'docPr')[0];
-  const alt = docPr === undefined ? '' : (attr(docPr, 'descr') ?? attr(docPr, 'title') ?? '');
+  const alt = imageAlt(image, parents);
   if (/^https?:/i.test(rel.target)) {
     if (!state.remoteImages.includes(rel.target)) state.remoteImages.push(rel.target);
     return '';
@@ -384,6 +384,33 @@ function imageOf(element: XmlElement, state: WalkState): string {
   if (!state.options.images) return '';
   state.imagePlacements.push({ ref, alt });
   return `![${alt}](${ref})`;
+}
+
+/** A drawing's text boxes and pictures walked once in document order; a fallback representation is not a second placement. */
+function drawingContent(element: XmlElement, state: WalkState, inherited: RunStyle, deleting: boolean): string {
+  const parents = parentMap(element);
+  let out = '';
+  let lastTextBox = false;
+  const walk = (current: XmlElement): void => {
+    for (const child of current.children) {
+      if (child.type !== 'element') continue;
+      if (child.local === 'Fallback') continue;
+      if (child.local === 'txbxContent') {
+        if (lastTextBox) out += '\n\n';
+        out += textBox(child, state, inherited, deleting);
+        lastTextBox = true;
+        continue;
+      }
+      if (child.local === 'blip' || child.local === 'imagedata') {
+        out += imageOf(child, state, parents);
+        lastTextBox = false;
+        continue;
+      }
+      walk(child);
+    }
+  };
+  walk(element);
+  return out;
 }
 
 /** A paragraph's own properties: its style, its numbering, its breaks. */
