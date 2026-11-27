@@ -154,6 +154,7 @@ test('document modes fit while the narrow chunk is still loading', { tag: '@mode
   try {
     await page.setViewportSize({ width: 390, height: 844 });
     await expect.poll(() => held).toBe(true);
+    await expect(page.getByTestId('modern-top-ornament')).toHaveCSS('transition-duration', '0s');
     await expect.poll(async () => {
       const box = await modes.boundingBox();
       return box !== null && box.x >= 0 && box.x + box.width <= 390;

@@ -6,17 +6,18 @@ import type { HostedProjectHandoff } from '../app/hosted-receiver.js';
 export interface ReaderSource {
   readonly account: string;
   readonly origin: string;
+  readonly fetch?: typeof fetch | undefined;
   readonly project: Extract<HostedProjectHandoff, { mode: 'read' }>;
   readonly signal: AbortSignal;
   readonly language: string | undefined;
 }
 
-export async function readHostedSnapshot({ project, origin, account, signal }: ReaderSource) {
+export async function readHostedSnapshot({ project, origin, account, signal, fetch: call = fetch }: ReaderSource) {
   const http = createHttpBlobStore({
     origin,
     projectId: project.projectId,
     attempts: 1,
-    fetch: (input, init) => fetch(input, { ...init, signal, redirect: 'error', cache: 'no-store' }),
+    fetch: (input, init) => call(input, { ...init, signal, redirect: 'error', cache: 'no-store' }),
   });
   const refuseWrite = async (): Promise<never> => { throw new TypeError('read-only-blob-store'); };
   const fs = await EncryptedRemoteArtifactFs.open({

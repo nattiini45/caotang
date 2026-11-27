@@ -40,6 +40,8 @@ export interface MenuFacts {
   readonly appName: string;
   /** Whether a project is open: the project's own actions are offered only then, and the projects' only when none is. */
   readonly project: boolean;
+  readonly openAccount?: () => void;
+  readonly accountLabel?: string;
 }
 
 /** An item that sends a command. It has no label of its own: the page's label is put on it, so the words are the page's. */
@@ -56,7 +58,7 @@ function shownChord(platform: NodeJS.Platform, accelerator: string): Partial<Men
   return platform === 'darwin' ? {} : { accelerator, registerAccelerator: false };
 }
 
-export function menuTemplate({ platform, labels, appName, project }: MenuFacts): MenuItemConstructorOptions[] {
+export function menuTemplate({ platform, labels, appName, project, openAccount, accountLabel }: MenuFacts): MenuItemConstructorOptions[] {
   const mac = platform === 'darwin';
   const file: MenuItemConstructorOptions = {
     label: labels.file,
@@ -64,6 +66,7 @@ export function menuTemplate({ platform, labels, appName, project }: MenuFacts):
       // Not Ctrl+N: the page's Ctrl+N makes a new document, and this makes a new project (keymap.ts).
       command('new-project', labels.newProject, { enabled: !project }),
       command('open-folder', labels.openFolder, { accelerator: 'CmdOrCtrl+O', enabled: !project }),
+      ...(openAccount && accountLabel ? [{ id: 'account-projects', label: accountLabel, click: openAccount }] : []),
       { type: 'separator' },
       command('compile', labels.compile, { enabled: project }),
       command('export-bundle', labels.exportBundle, { enabled: project }),

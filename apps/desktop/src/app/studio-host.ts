@@ -43,6 +43,7 @@ export interface HostedProjectSource {
   /** At most 64 letters, digits, `-` and `_`; the same label goes on every write and names this device's lease. */
   readonly device: string;
   readonly key: CryptoKey;
+  readonly fetch?: typeof fetch | undefined;
 }
 
 let host: StudioHost | null = null;

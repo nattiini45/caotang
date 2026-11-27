@@ -78,7 +78,7 @@ import { LazyBoundary, lazyView } from './lazy-view.js';
  * The account's save notice is loaded when a hosted project first has something to say, which is the only time it exists: the app's own
  * projects never render it, so its code and its states stay out of the first load (hosted.md §7.2).
  */
-const HostedSaveNotice = lazyView(() => import('./HostedSaveNotice.js').then((module) => ({ default: module.HostedSaveNotice })));
+const HostedSaveNotice = lazyView(() => import('./HostedSaveNotice.js'));
 const BrowserNotices = lazyView(() => import('./BrowserStorageBanner.js'));
 import type { TimelineFocusRequest } from '../app/timeline-model.js';
 import { clearTray, pendingRows } from '../app/timeline-tray.js';
@@ -1262,7 +1262,7 @@ export function Workspace({
       </>
     ),
     saveState: saveWords === null ? (
-      <LazyBoundary label={null}><HostedSaveNotice session={session} summary={saveState === 'saving' ? 'saving' : 'saved'} /></LazyBoundary>
+      <LazyBoundary label={null}><HostedSaveNotice session={session} localSaving={saveState === 'saving'} /></LazyBoundary>
     ) : <SaveIndicator state={saveState} words={saveWords} onExport={exportNow} />,
     progress: { target, setTarget: saveTarget, saveState, saveWords, exportBackup: exportNow },
     search: {

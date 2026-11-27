@@ -240,6 +240,9 @@ importers:
       '@caotang/comic':
         specifier: workspace:*
         version: link:../../packages/comic
+      '@caotang/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
       '@caotang/dialogue':
         specifier: workspace:*
         version: link:../../packages/dialogue

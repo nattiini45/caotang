@@ -58,12 +58,20 @@ export const electronSealer = (): Sealer => ({
 });
 
 export async function openKeyVault(profile: string, sealer: Sealer = electronSealer()): Promise<KeyVault> {
+  return openVaultFile(profile, FILE, sealer);
+}
+
+export async function openAccountVault(profile: string): Promise<KeyVault> {
+  return openVaultFile(profile, 'native-account-vault.json', electronSealer());
+}
+
+async function openVaultFile(profile: string, file: string, sealer: Sealer): Promise<KeyVault> {
   const fs = new NodeArtifactFs(profile);
-  const path = join(profile, FILE);
+  const path = join(profile, file);
   return openOsVault({
     available: async () => realKeychain(),
-    read: async () => await fs.exists(FILE) ? readFile(path, 'utf8') : undefined,
-    write: (text) => fs.writeAtomic(FILE, text),
+    read: async () => await fs.exists(file) ? readFile(path, 'utf8') : undefined,
+    write: (text) => fs.writeAtomic(file, text),
     seal: (plain) => sealer.seal(plain),
     open: (sealed) => sealer.open(sealed),
   });

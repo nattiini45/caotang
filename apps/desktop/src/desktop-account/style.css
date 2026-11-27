@@ -1,0 +1,55 @@
+@layer ui-sdk;
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--surface-app);
+  font-family: var(--ui);
+}
+
+.account-window {
+  display: grid;
+  justify-items: center;
+  padding: clamp(16px, 5vi, 56px);
+}
+
+.account-paper {
+  box-sizing: border-box;
+  inline-size: min(100%, 640px);
+  padding: clamp(20px, 5vi, 44px);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sheet, 12px);
+}
+
+.account-paper h1 { margin-block-start: 0; }
+.account-paper h2 { margin-block-end: .3em; font-size: 1.1em; }
+.account-window [role='alert'] { color: var(--danger); }
+.account-window .button, .account-studio .button { min-block-size: 44px; }
+.account-paper :is(form, [data-slot='field']) { display: grid; gap: .5em; }
+.account-paper form { gap: 1em; justify-items: start; }
+.account-paper [data-slot='field'] { inline-size: 100%; }
+
+.account-paper input {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: 44px;
+  padding-inline: .65em;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control, 6px);
+  color: var(--ink);
+  background: var(--paper);
+  font: inherit;
+}
+
+.account-actions { display: flex; flex-wrap: wrap; gap: .55em; align-items: center; }
+.account-code { letter-spacing: .15em; font-size: 1.65em; }
+.account-blocked { padding: .6em 1em 1em; background: var(--surface-app); }
+.account-projects { margin-block-end: 0; padding-inline-start: 0; list-style: none; }
+.account-projects li { padding-block: .8em; border-block-start: 1px solid var(--line); }
+.account-paper :is(button, input):focus-visible, .account-studio button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.account-studio { display: grid; grid-template-rows: auto minmax(0, 1fr); block-size: 100dvh; }
+.account-studio header { display: flex; align-items: center; flex-wrap: wrap; gap: 1em; padding: .5em 1em; background: var(--paper); border-block-end: 1px solid var(--line); }
+.account-studio header p { margin: 0; }
+.account-studio iframe { inline-size: 100%; block-size: 100%; border: 0; }

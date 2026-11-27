@@ -130,12 +130,14 @@ describe('desktop connection grants', () => {
     const description = JSON.parse(Buffer.from(connection.split('.')[0]!, 'base64url').toString()) as { desktop: object };
     expect(description.desktop).not.toHaveProperty('code');
     expect(description.desktop).not.toHaveProperty('verifier');
+    const approve = { connection, code, account: 'github:101' };
     expect((await post('redeem', { connection, verifier })).status).toBe(202);
-    expect((await post('approve', { connection, code })).status).toBe(401);
-    expect((await post('approve', { connection, code }, browser, 'https://other.example')).status).toBe(403);
-    expect((await post('approve', { connection, code: code === 'AAAAAAAA' ? 'BBBBBBBB' : 'AAAAAAAA' }, browser)).status).toBe(400);
-    expect((await post('approve', { connection, code }, browser)).status).toBe(204);
-    expect((await post('approve', { connection, code }, otherBrowser)).status).toBe(410);
+    expect((await post('approve', approve)).status).toBe(401);
+    expect((await post('approve', approve, browser, 'https://other.example')).status).toBe(403);
+    expect((await post('approve', approve, otherBrowser)).status).toBe(412);
+    expect((await post('approve', { ...approve, code: code === 'AAAAAAAA' ? 'BBBBBBBB' : 'AAAAAAAA' }, browser)).status).toBe(400);
+    expect((await post('approve', approve, browser)).status).toBe(204);
+    expect((await post('approve', { ...approve, account: 'github:202' }, otherBrowser)).status).toBe(410);
     expect((await post('redeem', { connection, verifier: randomBytes(32).toString('base64url') })).status).toBe(403);
     const results = await Promise.all([post('redeem', { connection, verifier }), post('redeem', { connection, verifier })]);
     expect(results.map((result) => result.status).sort()).toEqual([204, 410]);
@@ -143,12 +145,12 @@ describe('desktop connection grants', () => {
     expect(desktop).not.toBe(browser);
     const session = await h.dispatch('/v1/session', { headers: { Cookie: desktop } });
     expect(await session.json()).toEqual({ id: 'github:101', login: 'reader-one' });
-    expect((await post('approve', { connection, code }, desktop)).status).toBe(401);
-    expect((await post('approve', { connection, code }, browser)).status).toBe(410);
+    expect((await post('approve', approve, desktop)).status).toBe(401);
+    expect((await post('approve', approve, browser)).status).toBe(410);
 
     const canceled = await (await post('start', { challenge })).json() as { code: string; connection: string };
     expect((await post('cancel', { connection: canceled.connection, verifier })).status).toBe(204);
-    expect((await post('approve', canceled, browser)).status).toBe(410);
+    expect((await post('approve', { ...canceled, account: approve.account }, browser)).status).toBe(410);
     const payload = Buffer.from(JSON.stringify({
       purpose: 'desktop', origin: ORIGIN, expires: Date.now() - 1,
       desktop: { id: crypto.randomUUID(), challenge },

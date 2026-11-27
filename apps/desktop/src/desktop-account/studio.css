@@ -1,0 +1,6 @@
+@media (min-width: 960px) {
+  .workspace .toolbar-start {
+    flex: none;
+    max-inline-size: 50%;
+  }
+}

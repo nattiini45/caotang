@@ -33,6 +33,7 @@ Thumbs.db
 _site/
 # The landing page build (tools/build-site.mjs)
 site/dist/
+apps/desktop/dist-account/
 
 # electron-builder's output for Caotang for desktop (#401), and the icon decoded for it
 apps/desktop-shell/release/

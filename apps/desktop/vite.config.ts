@@ -120,8 +120,8 @@ function vendorChunkOf(id: string): string | null {
   return null;
 }
 
-export default defineConfig(({ command }) => ({
-  base: BASE,
+export default defineConfig(({ command, mode }) => ({
+  base: mode === 'native-account' ? '/' : BASE,
   // `macroTransform` is Lingui's native transform (no Babel/SWC plugin): it compiles `msg`/`<Trans>` in the
   // app's `.tsx` and turns import of a `.po` file into that locale's compiled message catalogue. The same
   // option is set in vitest.config.ts, so the macro contract is one transform in both pipelines.
@@ -160,11 +160,11 @@ export default defineConfig(({ command }) => ({
     strictPort: true,
   },
   build: {
-    outDir: 'dist',
+    outDir: mode === 'native-account' ? 'dist-account' : 'dist',
     // Modern's wallpaper is a hashed same-origin file, never a data: URL inlined into the stylesheet (modern-interface.md §5.3, §12):
     // it stays out of Modern's CSS budget and is cached on its own. Every other asset keeps Vite's default.
     assetsInlineLimit: (file: string) => (/[\\/]shell[\\/]modern[\\/]wallpaper-[a-z]+\.svg$/.test(file) ? false : undefined),
-    sourcemap: true,
+    sourcemap: mode !== 'native-account',
     // Vite's own warning is turned down to the highest cap on the script's allow-list: tools/check-bundle-size.mjs is the gate.
     chunkSizeWarningLimit: Math.max(...Object.values(BUDGET.allow)) / 1000,
     // Modern's narrow panels (#312) are a chunk of their own (with their stylesheet) that only `modern-shell` imports, and every other
@@ -180,6 +180,7 @@ export default defineConfig(({ command }) => ({
       },
     },
     rolldownOptions: {
+      ...(mode === 'native-account' ? { input: ['account/index.html', 'account/studio.html'] } : {}),
       // The workspace packages are libraries of declarations: nothing in their src/ runs on import. Without this, one constant imported
       // from a package's barrel keeps every module that barrel re-exports in the importing chunk, and the lazy-loaded agent and exporter
       // come in with the first page (see lazy-harness.ts and lazy-exporter.ts).

@@ -193,6 +193,7 @@ async function desktopConnection(request: Request, action: string, env: SyncServ
   if (action === 'approve') {
     const session = await verify(readCookie(request, SESSION_COOKIE), 'session', env);
     if (!session?.account || !session.identity || session.client === 'desktop') return reply(401, 'Sign in in the browser to approve the connection.');
+    if (session.identity.id !== fields['account']) return reply(412, 'The browser account changed. Read it again before approving.');
     const code = fields['code'];
     if (typeof code !== 'string' || !/^[2-9A-HJ-NP-Z]{8}$/.test(code) ||
       !await crypto.subtle.verify('HMAC', await signingKey(env.SESSION_SECRET), decode(descriptor.codeTag), encoder.encode(`desktop:${descriptor.id}:${code}`))) {
