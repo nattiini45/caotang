@@ -267,5 +267,5 @@ export async function openHostedTarget(source: HostedProjectSource): Promise<Hos
   const fs = await openRemoteProject(source, scope);
   const queue = await deviceQueue(source, fs, scope);
   saveHostedMarks(source.projectId, fs.highWater.entries(), scope);
-  return new HostedTarget(source.projectId, fs, queue, (state, pictures) => hostedBaseline(fs, state, pictures));
+  return new HostedTarget(source.projectId, fs, queue, (state, pictures) => hostedBaseline(fs, state, pictures), source.beforeExplicitSend);
 }

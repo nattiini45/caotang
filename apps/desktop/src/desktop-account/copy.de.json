@@ -33,5 +33,7 @@
   "projects": "Zurück zu den Kontoprojekten",
   "signOut": "Abmelden",
   "studio": "Kontoprojekt-Studio",
-  "offline": "Die Bearbeitungsfreigabe ist offline abgelaufen. Ausstehende Änderungen bleiben bis zum Senden auf diesem Gerät."
+  "offline": "Die Bearbeitungsfreigabe ist offline abgelaufen. Wählen Sie wieder online „An Ihr Konto senden“, um die Freigabe zurückzuholen und zu senden.",
+  "sendLeaseHeld": "Ein anderes Gerät bearbeitet das Projekt. Lassen Sie dieses Fenster offen oder exportieren Sie ein Paket. Versuchen Sie es erneut, sobald das andere Gerät nicht mehr bearbeitet.",
+  "closeRefused": "Einige Änderungen sind nicht sicher gespeichert. Lassen Sie dieses Fenster offen oder wählen Sie „Bundle exportieren“, um eine Kopie zu sichern."
 }

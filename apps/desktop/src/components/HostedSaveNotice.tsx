@@ -79,7 +79,7 @@ export function HostedSaveNotice({
   const pending = state.kind === 'stale' || state.persisted
     ? t`Saved here, not to your account.`
     : t`Closing this tab loses these changes.`;
-  const read = <button type="button" className="button" onClick={() => onReopenAccount?.()}><Trans>Read them</Trans></button>;
+  const read = <button type="button" className="button" onClick={onReopenAccount}><Trans>Read them</Trans></button>;
   const waitingFiles = state.waiting?.paths.map((path) => isolate(nameOf(path, session))).join(', ');
   const waitingText = <Trans>Read before sending these files: {waitingFiles}</Trans>;
   const waiting = state.waiting === undefined ? null : (
@@ -95,17 +95,20 @@ export function HostedSaveNotice({
       : <Trans>Closing this tab loses these changes.</Trans>}
   </p> : null;
 
-  if (state.kind === 'unsaved') {
+  const key = state.kind === 'conflict' ? state.paths.join('|') : '';
+  if (state.kind === 'unsaved' || (state.kind === 'conflict' && putOff === key)) {
     // Nothing here is sent on its own: the account gets these words when the writer says so. What the writer can act on is whether a copy
     // survived a reload — a full or blocked store leaves them in this tab, and saying "on this device" would be the sentence that costs
     // them the work.
     return <><p className="status-line notice-row" role="status">
       {state.readFailed !== 'queue' && <span>{pending}</span>}
-      <button type="button" className="button" onClick={() => {
+      {state.kind === 'unsaved' ? <button type="button" className="button" onClick={() => {
         void target.sendQueued();
       }}>
         <Trans>Send them to your account</Trans>
-      </button>
+      </button> : <button type="button" className="button is-quiet" onClick={() => setPutOff('')}>
+        <Trans>Ask me again</Trans>
+      </button>}
       {state.readOffered && waiting === null ? read : null}
     </p>{waiting}{readFailed}</>;
   }
@@ -115,17 +118,6 @@ export function HostedSaveNotice({
       <span><Trans>Your account has the changes.</Trans></span>
       {state.readFailed !== 'queue' && read}
     </p>}{readFailed}</>;
-  }
-
-  const key = state.paths.join('|');
-  if (putOff === key) {
-    return <><p className="status-line notice-row" role="status">
-      {state.readFailed !== 'queue' && <span>{pending}</span>}
-      <button type="button" className="button is-quiet" onClick={() => setPutOff('')}>
-        <Trans>Ask me again</Trans>
-      </button>
-      {state.readOffered && waiting === null ? read : null}
-    </p>{waiting}{readFailed}</>;
   }
 
   const files = state.paths.map((path) => isolate(nameOf(path, session))).join(', ');

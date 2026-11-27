@@ -1,5 +1,6 @@
 import type { HostedProjectHandoff } from '../app/hosted-receiver.js';
 import { createHostedProjectReceiver } from '../app/hosted-receiver.js';
+import { hostedTargetFor } from '../app/hosted-target-registry.js';
 import { ACCOUNT_ORIGIN, bridge, createAccountFetch } from './transport.js';
 import './studio.css';
 
@@ -12,19 +13,33 @@ export interface AccountStudioHandoff {
   readonly project: HostedProjectHandoff;
 }
 
+export type AccountStudioWindow = Window & { closeAccountProject?: () => Promise<boolean> };
+export type AccountHostWindow = Window & { renewAccountLease?: () => Promise<boolean> };
+
 let receiver: ReturnType<typeof createHostedProjectReceiver> | undefined;
+let editing: string | undefined;
+let closing = false;
 const parentWindow = window.parent;
 const root = document.getElementById('root');
 if (root && parentWindow !== window && parentWindow.location.origin === ACCOUNT_ORIGIN && parentWindow.location.pathname === '/account/index.html') {
   const native = bridge(parentWindow);
   if (native) {
+    (window as AccountStudioWindow).closeAccountProject = async () => {
+      if (closing) return false;
+      closing = true;
+      root.inert = true;
+      const target = editing === undefined ? null : hostedTargetFor(editing);
+      if (target && !await target.canLeave()) {
+        root.inert = false;
+        closing = false;
+        return false;
+      }
+      receiver?.lock();
+      return true;
+    };
     window.addEventListener('message', (event: MessageEvent<unknown>) => {
       if (event.source !== parentWindow || event.origin !== ACCOUNT_ORIGIN) return;
-      if (event.data === 'lock-account-project') {
-        receiver?.lock();
-        return;
-      }
-      if (receiver || event.data === null || typeof event.data !== 'object') return;
+      if (closing || receiver || event.data === null || typeof event.data !== 'object') return;
       const handoff = event.data as Partial<AccountStudioHandoff>;
       if (handoff.kind !== 'account-project' || typeof handoff.origin !== 'string' || typeof handoff.account !== 'string' ||
         typeof handoff.scope !== 'string' || typeof handoff.language !== 'string') return;
@@ -37,8 +52,10 @@ if (root && parentWindow !== window && parentWindow.location.origin === ACCOUNT_
             headers.set('X-Caotang-Account', account);
             return fetchAccount(input, { ...init, headers });
           },
+          beforeExplicitSend: async () => await (parentWindow as AccountHostWindow).renewAccountLease?.() ?? false,
           bootEditor: async (signal) => { signal.throwIfAborted(); await import('../main.js'); },
         });
+        if (handoff.project?.mode === 'edit') editing = handoff.project.projectId;
         void receiver.receive(handoff.account, handoff.project).catch(() => parentWindow.postMessage('account-project-failed', ACCOUNT_ORIGIN));
       } catch {
         parentWindow.postMessage('account-project-failed', ACCOUNT_ORIGIN);

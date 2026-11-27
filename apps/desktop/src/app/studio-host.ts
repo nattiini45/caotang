@@ -44,6 +44,7 @@ export interface HostedProjectSource {
   readonly device: string;
   readonly key: CryptoKey;
   readonly fetch?: typeof fetch | undefined;
+  readonly beforeExplicitSend?: (() => Promise<boolean>) | undefined;
 }
 
 let host: StudioHost | null = null;

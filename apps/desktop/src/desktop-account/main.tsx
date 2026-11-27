@@ -12,7 +12,7 @@ import { RemoteSessionError, createHttpLease, createHttpProjectRegistry, type Re
 import en from './copy.en.json';
 import de from './copy.de.json';
 import { createShellLease, LEASE_HEARTBEAT_MS, type ShellLease } from './lease.js';
-import type { AccountStudioHandoff } from './studio.js';
+import type { AccountHostWindow, AccountStudioHandoff, AccountStudioWindow } from './studio.js';
 import { ACCOUNT_ORIGIN, bridge, createAccountFetch, type AccountBridge, type AccountState } from './transport.js';
 import { workerKdf } from './worker-kdf.js';
 
@@ -46,6 +46,8 @@ function AccountWindow({ native }: { readonly native: AccountBridge }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const lease = useRef<ShellLease | null>(null);
+  const leaving = useRef<Promise<boolean> | null>(null);
+  const renewing = useRef<Promise<boolean> | null>(null);
 
   useEffect(() => {
     if (localStorage.getItem(ADDRESS) === null) void native.configuredOrigin().then((configured) => { if (configured) setAddress(configured); });
@@ -56,6 +58,29 @@ function AccountWindow({ native }: { readonly native: AccountBridge }) {
   }, [active, connection.kind, session, unlocked]);
 
   useEffect(() => () => kdf.close(), [kdf]);
+
+  useEffect(() => {
+    const host = window as AccountHostWindow;
+    host.renewAccountLease = async () => {
+      if (renewing.current) return renewing.current;
+      const candidate = lease.current;
+      if (!candidate || leaving.current) return false;
+      const current = candidate.state();
+      if (current.leased && current.until > Date.now()) return true;
+      const attempt = candidate.take().then((next) => {
+        if (lease.current !== candidate || leaving.current) return false;
+        setNotice(next.leased ? null : 'sendLeaseHeld');
+        return next.leased;
+      }, () => {
+        if (lease.current === candidate) setNotice('offline');
+        return false;
+      });
+      renewing.current = attempt;
+      try { return await attempt; }
+      finally { renewing.current = null; }
+    };
+    return () => { delete host.renewAccountLease; };
+  }, []);
 
   useEffect(() => {
     const failed = (event: MessageEvent<unknown>) => {
@@ -132,19 +157,30 @@ function AccountWindow({ native }: { readonly native: AccountBridge }) {
     }, 'wrongPassphrase');
   };
 
-  const leave = async () => {
-    frame.current?.contentWindow?.postMessage('lock-account-project', ACCOUNT_ORIGIN);
-    const previous = lease.current;
-    lease.current = null;
-    setActive(null);
-    setBlocked(null);
-    if (previous) {
-      const timeout = AbortSignal.timeout(2000);
-      await Promise.race([
-        previous.release().catch(() => undefined),
-        new Promise<void>((resolve) => timeout.addEventListener('abort', () => resolve(), { once: true })),
-      ]);
-    }
+  const leave = async (): Promise<boolean> => {
+    if (leaving.current) return leaving.current;
+    const closing = (async () => {
+      const target = frame.current?.contentWindow as AccountStudioWindow | null | undefined;
+      if (target && !await target.closeAccountProject?.()) {
+        setNotice('closeRefused');
+        return false;
+      }
+      const previous = lease.current;
+      lease.current = null;
+      setActive(null);
+      setBlocked(null);
+      if (previous) {
+        const timeout = AbortSignal.timeout(2000);
+        await Promise.race([
+          previous.release().catch(() => undefined),
+          new Promise<void>((resolve) => timeout.addEventListener('abort', () => resolve(), { once: true })),
+        ]);
+      }
+      return true;
+    })();
+    leaving.current = closing;
+    try { return await closing; }
+    finally { leaving.current = null; }
   };
 
   const open = (project: Project, mode: 'edit' | 'read', takeover = false) => run(async () => {
@@ -161,12 +197,11 @@ function AccountWindow({ native }: { readonly native: AccountBridge }) {
       }
       lease.current = candidate;
       candidate.subscribe(() => {
-        if (lease.current !== candidate || candidate.state().leased) return;
+        if (lease.current !== candidate || candidate.state().leased || renewing.current) return;
         if (candidate.expired()) {
           setNotice('offline');
         } else {
-          void leave();
-          setBlocked(project);
+          void leave().then((closed) => { if (closed) setBlocked(project); });
         }
       });
     }
@@ -177,7 +212,7 @@ function AccountWindow({ native }: { readonly native: AccountBridge }) {
   }, 'openFailed');
 
   const signOut = () => run(async () => {
-    await leave();
+    if (!await leave()) return;
     kdf.close();
     if ((await native.signOut()).kind !== 'signed-out') {
       setNotice('signOutFailed');
@@ -190,7 +225,7 @@ function AccountWindow({ native }: { readonly native: AccountBridge }) {
 
   if (active) return <div className="account-studio">
     <header>
-      <Button className="button" onClick={() => run(leave)}>{words.projects}</Button>
+      <Button className="button" disabled={busy} onClick={() => run(async () => { await leave(); })}>{words.projects}</Button>
       {notice && <p role="status">{words[notice]}</p>}
     </header>
     <iframe ref={frame} src="./studio.html" title={words.studio} onLoad={() => frame.current?.contentWindow?.postMessage(active, ACCOUNT_ORIGIN)} />

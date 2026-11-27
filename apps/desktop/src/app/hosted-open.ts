@@ -123,6 +123,7 @@ export async function openHostedProject(
     state: opened.session.state,
     persistence: opened.session.persistence,
     assets: () => opened.session.assets.snapshot(),
+    saved: () => opened.session.saved(),
   });
   return opened;
 }

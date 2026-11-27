@@ -33,5 +33,7 @@
   "projects": "Back to account projects",
   "signOut": "Sign out",
   "studio": "Account project studio",
-  "offline": "The edit lease expired while offline. Your pending edits stay on this device until you send them."
+  "offline": "The edit lease expired while offline. When you are back online, choose Send them to your account to regain the lease and send.",
+  "sendLeaseHeld": "Another device is editing. Keep this window open or export a bundle. Try sending again after that device stops editing.",
+  "closeRefused": "Some changes are not safely stored. Keep this window open or choose Export bundle to keep a copy."
 }

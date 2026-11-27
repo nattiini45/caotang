@@ -6,6 +6,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Desktop keeps account edits that could not be saved on this device.** Going back or a takeover leaves the editor open so you can export a copy. When you explicitly send after an offline lease expires, the app tries to regain the lease without taking over another device.
 - **The Modern toolbar stays in place when the window becomes narrow.** The wide-window sidebar animation no longer squeezes the project title during the resize.
 
 - **Account projects show their account save state.** When an embedding host opens an account project, the studio says whether its changes reached the account or are still on this device. The browser-only persistence warning is shown only where it applies.
