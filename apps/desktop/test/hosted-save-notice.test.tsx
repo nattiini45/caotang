@@ -25,36 +25,40 @@ let root: Root;
 let host: HTMLDivElement;
 let state: ProjectState;
 let session: ProjectSession;
-let committed: unknown[][];
+let sends: boolean[];
+const accepted: HostedReplay = { kind: 'accepted', changes: [] };
+const conflict: HostedReplay = { kind: 'conflict', versions: new Map([[PATH, 2]]) };
+const unavailable: HostedReplay = { kind: 'unavailable' };
 
-function target(outcome: unknown, queue: HostedQueuePort | null = null): HostedTarget {
-  const fs = {
-    refresh: async () => undefined,
-    commitChanges: async (changes: unknown[]) => {
-      committed.push(changes);
-    },
-  };
-  return new HostedTarget('p_lighthouse', fs as never, (async () => outcome) as never, queue);
-}
-
-/** A queue an earlier tab left: it holds `held`, and a replay answers `answer`. */
-function queue(held: readonly string[], answer: HostedReplay | readonly HostedReplay[] = { kind: 'sent', count: 1 }): HostedQueuePort {
+function target(answers: HostedReplay[] = [accepted], held: readonly string[] = [], durable = true, failStage = false): HostedTarget {
   const paths = new Set(held);
-  const answers = Array.isArray(answer) ? [...answer] : null;
-  return {
-    hold: () => undefined,
-    replay: async () => (answers === null ? (answer as HostedReplay) : (answers.shift() ?? { kind: 'conflict', paths: [...paths] })),
-    forget: (forgotten?: readonly string[]) => {
-      if (forgotten === undefined) paths.clear();
-      else for (const path of forgotten) paths.delete(path);
-    },
-    rebase: () => undefined,
+  const queue: HostedQueuePort = {
     held: () => [...paths],
-    marks: () => undefined,
+    deferred: () => [],
+    opened: () => undefined,
+    persisted: () => durable,
+    stage: (changes) => {
+      if (failStage) {
+        failStage = false;
+        throw new Error('This tab could not prepare the files');
+      }
+      for (const change of changes) paths.add(change.path);
+    },
+    send: async (refresh) => {
+      sends.push(refresh);
+      const result = answers.shift() ?? unavailable;
+      if (result.kind === 'accepted') paths.clear();
+      return result;
+    },
   };
+  return new HostedTarget('p_lighthouse', {} as never, queue, async () => ({
+    prepare: async () => ({ changes: [{ path: PATH, base: 1, bytes: new Uint8Array([1]) }], staged: () => undefined }),
+    accepted: () => undefined,
+  }));
 }
 
 async function render(one: HostedTarget, onReopenAccount?: () => void): Promise<void> {
+  await one.rememberOpened(state, {});
   installHostedTarget(one);
   await act(async () => root.render(
     <I18nProvider i18n={i18n}><HostedSaveNotice session={session} onReopenAccount={onReopenAccount} /></I18nProvider>,
@@ -66,7 +70,7 @@ beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value(this: HTMLDialogElement) { this.open = true; } });
   Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable: true, value(this: HTMLDialogElement) { this.open = false; this.dispatchEvent(new Event('close')); } });
-  committed = [];
+  sends = [];
   state = createProjectState(createEmptyManifest('The lighthouse', new Date(0)));
   addDocument(state, { parentId: 'manuscript', id: DOC, title: 'The lamp goes out', body: 'The lamp went out.', now: new Date(0) });
   session = { projectId: 'p_lighthouse', state } as unknown as ProjectSession;
@@ -98,22 +102,31 @@ function button(label: string): HTMLButtonElement {
 }
 
 it('says nothing while a save is idle', async () => {
-  await render(target({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } }));
+  await render(target());
   expect(host.innerHTML).toBe('');
 });
 
 it('says the changes are on this device when the server does not take the save, and sends them only when asked', async () => {
-  const one = target({ kind: 'unavailable', changes: [] });
+  const one = target([unavailable, accepted]);
   await render(one);
   await act(async () => one.save(state));
-  expect(shown()).toContain('These changes are on this device.');
+  expect(shown()).toContain('Saved here, not to your account.');
+  expect(sends).toEqual([false]);
+  await act(async () => button('Send them to your account').click());
+  expect(sends).toEqual([false, true]);
+});
+
+it('says the words are only in this tab when the queue could not be written, and still offers the send', async () => {
+  const one = target([unavailable], [], false);
+  await render(one);
+  await act(async () => one.save(state));
+  expect(shown()).toContain('Closing this tab loses these changes.');
+  expect(shown()).not.toContain('Saved here, not to your account.');
   expect(button('Send them to your account')).toBeTruthy();
-  // Nothing has been sent: the button is the writer's choice, not an automatic retry.
-  expect(committed.length).toBe(0);
 });
 
 it('names the documents another device changed by their titles, never by their file names', async () => {
-  const one = target({ kind: 'conflict', paths: [PATH], changes: [{ path: PATH, kind: 'modified' }] });
+  const one = target([conflict]);
   await render(one);
   await act(async () => one.save(state));
   expect(shown()).toContain('Another device saved these first');
@@ -122,48 +135,72 @@ it('names the documents another device changed by their titles, never by their f
 });
 
 it('keeps this device’s text when the writer says so, and the question goes', async () => {
-  // The first save loses to another device; the whole save run again on top of their version lands.
-  const outcomes = [
-    { kind: 'conflict', paths: [PATH], changes: [{ path: PATH, kind: 'modified' }] },
-    { kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } },
-  ];
-  const one = new HostedTarget('p_lighthouse', { refresh: async () => undefined } as never, (async () => outcomes.shift()) as never);
-  await render(one);
+  const reopen = vi.fn();
+  const one = target([conflict, accepted]);
+  await render(one, reopen);
   await act(async () => one.save(state));
   await act(async () => button('Keep this device’s text').click());
-  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
   expect(shown()).not.toContain('Another device saved these first');
-  expect(host.innerHTML).toBe('');
+  expect(reopen).not.toHaveBeenCalled();
+  expect(button('Read them')).toBeTruthy();
 });
 
 it('leaves it for now, and holds that answer until the writer asks again', async () => {
-  const one = target({ kind: 'conflict', paths: [PATH], changes: [{ path: PATH, kind: 'modified' }] });
+  const one = target([conflict]);
   await render(one);
   await act(async () => one.save(state));
   await act(async () => button('Leave it for now').click());
-  expect(shown()).toContain('Your account keeps the other device’s version.');
-  expect(committed).toEqual([]);
+  expect(shown()).toContain('Saved here, not to your account.');
+  expect(sends).toEqual([false]);
   await act(async () => button('Ask me again').click());
   expect(shown()).toContain('Another device saved these first');
 });
 
-it('reads the account again once a send the writer chose puts words on it', async () => {
+it('offers to read the account after an explicit send without reopening automatically', async () => {
   const reopen = vi.fn();
-  const one = target({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } }, queue([PATH]));
-  await render(one, reopen);
-  // The open found words the account does not have: they are here, and the writer sends them.
-  await act(async () => one.heldAtOpen());
+  await render(target([accepted], [PATH]), reopen);
   await act(async () => button('Send them to your account').click());
-  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+  expect(reopen).not.toHaveBeenCalled();
+  await act(async () => button('Read them').click());
   expect(reopen).toHaveBeenCalledOnce();
 });
 
-it('leaves the open book alone when this session’s own save conflicted, because its text is what was read', async () => {
+it('keeps the read action available when further edits were durably staged', async () => {
   const reopen = vi.fn();
-  const one = target({ kind: 'conflict', paths: [PATH], changes: [{ path: PATH, kind: 'modified' }] });
+  const one = target([accepted], [PATH]);
   await render(one, reopen);
+  await act(async () => button('Send them to your account').click());
   await act(async () => one.save(state));
-  await act(async () => button('Keep this device’s text').click());
-  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
-  expect(reopen).not.toHaveBeenCalled();
+  expect(one.canReread()).toBe(true);
+  expect(button('Send them to your account')).toBeTruthy();
+  await act(async () => button('Read them').click());
+  expect(reopen).toHaveBeenCalledOnce();
+  expect(sends).toEqual([true]);
+});
+
+it('names waiting files and offers their read inside the conflict dialog', async () => {
+  const reopen = vi.fn();
+  const one = target([conflict], [PATH]);
+  await render(one, reopen);
+  vi.spyOn(one.queue, 'deferred').mockReturnValue(['docs/waiting.md']);
+  await act(async () => button('Send them to your account').click());
+  const dialog = document.body.querySelector('dialog[open]');
+  expect(dialog?.textContent).toContain('docs/waiting.md');
+  expect(dialog?.contains(button('Read them'))).toBe(true);
+  await act(async () => button('Read them').click());
+  expect(reopen).toHaveBeenCalledOnce();
+  expect(document.body.querySelector('dialog[open]')).toBeNull();
+});
+
+it.each([{ held: [] }, { held: [PATH] }])('offers a local retry after staging fails ($held)', async ({ held }) => {
+  const one = target([accepted], held, true, true);
+  await render(one);
+  await act(async () => one.save(state));
+  expect(one.state()).toMatchObject({ kind: 'unsaved', persisted: true, stageFailed: true });
+  expect(shown()).toContain('Your latest edits aren’t ready to send.');
+  expect(shown()).not.toContain('Send them to your account');
+  expect(shown()).not.toContain('Closing this tab loses these changes.');
+  await act(async () => button('Try again').click());
+  expect(button('Send them to your account')).toBeTruthy();
+  expect(sends).toEqual([]);
 });

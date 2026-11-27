@@ -11,14 +11,53 @@ import {
   readProject,
   readProjectState,
   readSessions,
+  rebuildDerived,
   writeProjectState,
   type ArtifactFs,
   type RuntimeStore,
 } from '@caotang/store';
 import type { Opened } from './lifecycle.js';
-import { installHostedTarget } from './hosted-target-registry.js';
+import { forgetHostedTarget, hostedTargetFor, installHostedTarget } from './hosted-target-registry.js';
 import type { HostedTarget } from './hosted-target.js';
 import type { HostedProjectSource } from './studio-host.js';
+
+export async function openCurrentHostedProject(
+  store: RuntimeStore,
+  source: HostedProjectSource,
+  current: () => boolean,
+  clear: () => void,
+  show: (opened: Opened) => void,
+  reread?: Opened['session'],
+): Promise<void> {
+  if (!current()) return;
+  if (reread) {
+    const target = hostedTargetFor(reread.projectId);
+    if (!target) return;
+    try {
+      await reread.saved();
+    } catch {
+      if (current()) target.rereadRefused('save');
+      return;
+    }
+    await target.settled();
+    if (!current()) return;
+    if (!target.canReread()) {
+      target.rereadRefused(target.state().stageFailed ? 'save' : 'queue');
+      return;
+    }
+    target.detach();
+    clear();
+    await reread.closeSafely().catch(() => undefined);
+    if (!current()) return;
+  }
+  const opened = await openHostedProject(store, source);
+  if (current()) {
+    show(opened);
+    return;
+  }
+  await opened.session.closeSafely().catch(() => undefined);
+  forgetHostedTarget(opened.session.projectId);
+}
 
 /**
  * The hosted modules are reached only when a host has handed a project over, which is the whole point of the seam: `caotang.app` and the
@@ -45,6 +84,8 @@ export async function openHostedProject(
   // Nothing the queue holds is sent here: opening a project reads it, and the writer is told what is still on this device with the one
   // action that would send it (hosted.md §7.2). An open that replayed on its own would write to the account without being asked.
   const loaded = await readProject(target.fs);
+  loaded.state.manifest.derived.wordCounts = {};
+  rebuildDerived(loaded.state);
   // The project's pictures travel with it as files among the others: the copy this browser keeps is what the session shows and what a
   // save carries, so a picture the account has and this open left behind would be a picture missing from the writer's page.
   const pictures = await picturesOnHostedFs(target.fs);
@@ -74,12 +115,8 @@ export async function openHostedProject(
     }
     opened = await openStored(store, projectId, null, { notices: noticesOf(loaded.notices), droppedFields: droppedFieldsOf(loaded.notices), folderLog: [...accountLog, ...linesNotHeld(keptLog, accountLog)] }, pictures);
   }
-  // The target is kept for the session and follows every save this browser finishes, carrying the project's pictures with the files
-  // that name them, and knowing what the account held at this open so a save removes only what this device deleted itself.
-  target.rememberOpened(opened.session.state.documents.keys(), pictures);
+  await target.rememberOpened(opened.session.state, pictures);
   installHostedTarget(target);
-  // Words a save could not deliver are the writer's to send: the target says they are here, and the notice offers the action.
-  target.heldAtOpen();
   target.attach({
     state: opened.session.state,
     persistence: opened.session.persistence,
@@ -87,4 +124,3 @@ export async function openHostedProject(
   });
   return opened;
 }
-

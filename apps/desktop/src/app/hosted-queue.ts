@@ -10,7 +10,7 @@
  * Both are scoped to the account the studio belongs to, so two accounts that imported the same bundle never read each other's
  * queue, and both tolerate a browser with no storage, a full quota, and a value this build did not write.
  */
-import { scopedStoreName } from './storage-scope.js';
+import { storageScope } from './storage-scope.js';
 import { browserStorage } from './unsent-copy.js';
 
 export const QUEUE_KEY_PREFIX = 'caotang.hosted-queue.';
@@ -22,18 +22,18 @@ export const MARKS_KEY_PREFIX = 'caotang.hosted-marks.';
  */
 export const QUEUE_CAP_CHARS = 4 * 1024 * 1024;
 
-export function hostedQueueKey(projectId: string): string {
-  return scopedStoreName(`${QUEUE_KEY_PREFIX}${projectId}`);
+export function hostedQueueKey(projectId: string, scope = storageScope()): string {
+  return `${QUEUE_KEY_PREFIX}${projectId}${scope === null ? '' : `--${scope}`}`;
 }
 
-export function hostedMarksKey(projectId: string): string {
-  return scopedStoreName(`${MARKS_KEY_PREFIX}${projectId}`);
+export function hostedMarksKey(projectId: string, scope = storageScope()): string {
+  return `${MARKS_KEY_PREFIX}${projectId}${scope === null ? '' : `--${scope}`}`;
 }
 
 /** The queue this device kept for the project, or `null` when there is none, the browser keeps no storage, or it read back empty. */
-export function loadHostedQueue(projectId: string): string | null {
+export function loadHostedQueue(projectId: string, scope = storageScope()): string | null {
   try {
-    const text = browserStorage()?.getItem(hostedQueueKey(projectId)) ?? null;
+    const text = browserStorage()?.getItem(hostedQueueKey(projectId, scope)) ?? null;
     return text === null || text === '' ? null : text;
   } catch {
     return null;
@@ -41,17 +41,32 @@ export function loadHostedQueue(projectId: string): string | null {
 }
 
 /** Keeps the queue for the next open, or forgets it with `null`. Too large to keep is said to the caller rather than swallowed. */
-export function saveHostedQueue(projectId: string, text: string | null): boolean {
+export function saveHostedQueue(projectId: string, text: string | null, scope = storageScope()): boolean {
   try {
     const storage = browserStorage();
     if (storage === undefined) return text === null;
+    // A queue that cannot be kept takes the stored one with it: a store that refuses a write, or a value over the cap, leaves the value it
+    // already holds, and that value is older than the words in this tab — a next open would read it and offer to send older text as this
+    // device's current work. Nothing is kept rather than the wrong thing.
+    const drop = (): false => {
+      try {
+        storage.removeItem(hostedQueueKey(projectId, scope));
+      } catch {
+        // A store that will not even forget the old value leaves nothing more this build can do about it.
+      }
+      return false;
+    };
     if (text === null) {
-      storage.removeItem(hostedQueueKey(projectId));
+      storage.removeItem(hostedQueueKey(projectId, scope));
       return true;
     }
-    if (text.length > QUEUE_CAP_CHARS) return false;
-    storage.setItem(hostedQueueKey(projectId), text);
-    return true;
+    if (text.length > QUEUE_CAP_CHARS) return drop();
+    try {
+      storage.setItem(hostedQueueKey(projectId, scope), text);
+      return true;
+    } catch {
+      return drop();
+    }
   } catch {
     return false;
   }
@@ -63,9 +78,9 @@ function isMark(row: unknown): row is readonly [string, number] {
 }
 
 /** The rollback marks this device kept for the project, oldest news dropped: a mark is a floor, so a lost row only trusts more. */
-export function loadHostedMarks(projectId: string): [string, number][] {
+export function loadHostedMarks(projectId: string, scope = storageScope()): [string, number][] {
   try {
-    const text = browserStorage()?.getItem(hostedMarksKey(projectId));
+    const text = browserStorage()?.getItem(hostedMarksKey(projectId, scope));
     if (text === null || text === undefined || text === '') return [];
     const raw: unknown = JSON.parse(text);
     if (!Array.isArray(raw)) return [];
@@ -76,15 +91,15 @@ export function loadHostedMarks(projectId: string): [string, number][] {
 }
 
 /** Keeps the marks for the next open; an empty set forgets the key, because a device that has seen nothing trusts what it meets. */
-export function saveHostedMarks(projectId: string, entries: readonly (readonly [string, number])[]): void {
+export function saveHostedMarks(projectId: string, entries: readonly (readonly [string, number])[], scope = storageScope()): void {
   try {
     const storage = browserStorage();
     if (storage === undefined) return;
     if (entries.length === 0) {
-      storage.removeItem(hostedMarksKey(projectId));
+      storage.removeItem(hostedMarksKey(projectId, scope));
       return;
     }
-    storage.setItem(hostedMarksKey(projectId), JSON.stringify(entries));
+    storage.setItem(hostedMarksKey(projectId, scope), JSON.stringify(entries));
   } catch {
     // A full or blocked store costs the rollback memory, never the save.
   }

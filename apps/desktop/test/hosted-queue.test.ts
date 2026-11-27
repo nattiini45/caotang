@@ -46,6 +46,30 @@ describe('the offline queue', () => {
     expect(loadHostedQueue('p_lighthouse')).toBeNull();
   });
 
+  it('forgets the queue it kept when the store refuses the newest one', () => {
+    // Web Storage keeps the value it already holds when setItem throws, and that value is older than the words in this tab: a next open
+    // that read it would send older text as this device's current work. Nothing is kept rather than the wrong thing.
+    saveHostedQueue('p_lighthouse', '{"format":1,"edits":[]}');
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = () => {
+      throw new DOMException('quota', 'QuotaExceededError');
+    };
+    try {
+      expect(saveHostedQueue('p_lighthouse', '{"format":1,"edits":[["docs/a.md",""]],"base":[]}')).toBe(false);
+    } finally {
+      Storage.prototype.setItem = setItem;
+    }
+    expect(loadHostedQueue('p_lighthouse')).toBeNull();
+  });
+
+  it('forgets the queue it kept when the newest one does not fit', () => {
+    // The stored queue is older than what the tab holds, so a next open that read it would present older words as this device's current
+    // save and send them over the account. Nothing is kept rather than the wrong thing.
+    saveHostedQueue('p_lighthouse', 'the words from before');
+    expect(saveHostedQueue('p_lighthouse', 'x'.repeat(QUEUE_CAP_CHARS + 1))).toBe(false);
+    expect(loadHostedQueue('p_lighthouse')).toBeNull();
+  });
+
   it('keeps two accounts’ queues apart', () => {
     setStorageScope('acc_one');
     saveHostedQueue('p_lighthouse', 'mine');

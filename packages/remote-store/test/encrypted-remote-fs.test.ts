@@ -291,6 +291,20 @@ describe('what the server holds', () => {
     expect(server.dump().filter((o) => o.deleted).length).toBe(2);
   });
 
+  it('keeps a tombstone’s version, so a path another device deleted reads as moved', async () => {
+    // A queued edit records the version its path had when the words were staged. A path another device created and then deleted is absent
+    // again, and reporting zero for it would make an edit staged while the path was missing look untouched — the next send would write the
+    // file back over the other device's deletion (hosted.md §7.2).
+    const server = new FakeBlobServer();
+    const fs = await device(server, generateProjectKey());
+    expect(fs.versionOf('assets/c_1.png')).toBe(0);
+    await fs.writeAtomic('assets/c_1.png', 'gone in a moment');
+    const created = fs.versionOf('assets/c_1.png');
+    expect(created).toBeGreaterThan(0);
+    await fs.remove('assets/c_1.png');
+    expect(fs.versionOf('assets/c_1.png')).toBe(created + 1);
+  });
+
   it('shows no name, size or version that tells files of one bucket apart', async () => {
     const server = new FakeBlobServer();
     const fs = await device(server, generateProjectKey());

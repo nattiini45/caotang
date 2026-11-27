@@ -5239,7 +5239,7 @@ msgstr "Annotating shots"
 msgid "Another agent action is active. Wait for it to finish, then try again."
 msgstr "Another agent action is active. Wait for it to finish, then try again."
 
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Another device saved these first"
 msgstr "Another device saved these first"
@@ -5605,7 +5605,7 @@ msgstr "Ask for {label}"
 msgid "Ask it to draft a scene, fill the synopses of a chapter, or check the manuscript for continuity. It proposes each change first, and nothing is written until you approve it."
 msgstr "Ask it to draft a scene, fill the synopses of a chapter, or check the manuscript for continuity. It proposes each change first, and nothing is written until you approve it."
 
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Ask me again"
 msgstr "Ask me again"
@@ -7643,6 +7643,14 @@ msgstr "Close this project before opening another one from a link."
 #: apps/desktop/src/app/native-os.ts
 msgid "Close window"
 msgstr "Close window"
+
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Closing this tab loses these changes."
+msgstr "Closing this tab loses these changes."
 
 #. Interpolated values: commandCount (how many commands match what is typed), shown (displayed context matches), total (all readable context matches)
 #. Interpolated values: file is the imported file name; reason is the import failure message
@@ -12629,7 +12637,7 @@ msgstr "Keep the pictures’ private details, such as where they were taken"
 msgid "Keep this browser’s version and save it to the folder"
 msgstr "Keep this browser’s version and save it to the folder"
 
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Keep this device’s text"
 msgstr "Keep this device’s text"
@@ -12937,7 +12945,7 @@ msgstr "Leave focus mode"
 msgid "Leave it as it is — the file is not changed."
 msgstr "Leave it as it is — the file is not changed."
 
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Leave it for now"
 msgstr "Leave it for now"
@@ -15550,11 +15558,6 @@ msgstr "Nothing has changed in this project yet."
 msgid "Nothing has changed yet"
 msgstr "Nothing has changed yet"
 
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "Nothing here was written over them. Keep this device’s text to save it on top of their version; their version stays as the one it replaced."
-msgstr "Nothing here was written over them. Keep this device’s text to save it on top of their version; their version stays as the one it replaced."
-
 #. Binder row labels. Interpolated values: access is an access level's name, from is the node the rule was set on, title is a row's title.
 #: apps/desktop/src/components/Binder.tsx
 msgid "Nothing in the binder matches this filter. Clear it to see the whole binder."
@@ -17666,6 +17669,11 @@ msgstr "Read and approve this skill in Skills, then send the command again."
 msgid "Read and approve…"
 msgstr "Read and approve…"
 
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Read before sending these files: {waitingFiles}"
+msgstr "Read before sending these files: {waitingFiles}"
+
 #. The encoding dialog. Interpolated values: path, name and profile are the writer's own file or provider names; encoding names a text encoding; size and count are numbers; reason is a failure message.
 #: apps/desktop/src/components/EncodingDialog.tsx
 msgid "Read it as"
@@ -17745,7 +17753,8 @@ msgstr "Read the timeline again"
 msgid "Read the user guide"
 msgstr "Read the user guide"
 
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Read them"
 msgstr "Read them"
@@ -19676,6 +19685,12 @@ msgstr "Save token"
 msgid "Save writing settings"
 msgstr "Save writing settings"
 
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Save your edits before reading the account copy."
+msgstr "Save your edits before reading the account copy."
+
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Saved"
@@ -19736,6 +19751,11 @@ msgstr "Saved filters"
 #: apps/desktop/src/components/GoalRecovery.tsx
 msgid "Saved goal checks"
 msgstr "Saved goal checks"
+
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Saved here, not to your account."
+msgstr "Saved here, not to your account."
 
 #. calls is the total model-call count saved for this goal.
 #: apps/desktop/src/components/GoalRecovery.tsx
@@ -20406,7 +20426,7 @@ msgstr "Send it to"
 msgid "Send none"
 msgstr "Send none"
 
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Send them to your account"
 msgstr "Send them to your account"
@@ -22470,8 +22490,8 @@ msgstr "The 1st (the default)"
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
-msgid "the account’s copy of this project"
-msgstr "the account’s copy of this project"
+msgid "the account copy"
+msgstr "the account copy"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
@@ -25320,15 +25340,10 @@ msgstr "These apply to the Modern interface: glass becomes solid, and nothing sl
 msgid "These apply to the whole container. The default speaker fills the speaker column of the dialogue table. Add line ids on save writes the missing line ids into the Ink text as it saves."
 msgstr "These apply to the whole container. The default speaker fills the speaker column of the dialogue table. Add line ids on save writes the missing line ids into the Ink text as it saves."
 
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "These changed on another device: {files}"
 msgstr "These changed on another device: {files}"
-
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "These changes are on this device. Your account does not have them yet."
-msgstr "These changes are on this device. Your account does not have them yet."
 
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -25968,6 +25983,11 @@ msgstr "This removes the item, the {descendants, plural, one {# item} other {# i
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This removes the item, the {descendants, plural, one {# item} other {# items}} inside it. You can undo it right after with Ctrl+Z."
 msgstr "This removes the item, the {descendants, plural, one {# item} other {# items}} inside it. You can undo it right after with Ctrl+Z."
+
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "This replaces the account files."
+msgstr "This replaces the account files."
 
 #: apps/desktop/src/components/SaveCommand.tsx
 msgid "This request becomes a project skill that only you can invoke. It does not change permissions."
@@ -26691,9 +26711,11 @@ msgstr "Trusted for reads. Lets read-only tools run without asking, and only too
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: file is the imported file name; reason is the import failure message
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #. Interpolated values: subject
 #. Interpolated values: title is an isolated writer-supplied intent; count is a turn count; tokens is a formatted recorded token count.
 #: apps/desktop/src/components/AgentSessions.tsx
+#: apps/desktop/src/components/HostedSaveNotice.tsx
 #: apps/desktop/src/components/InkGate.tsx
 #: apps/desktop/src/components/lazy-view.tsx
 #: apps/desktop/src/components/Settings.tsx
@@ -28284,15 +28306,10 @@ msgstr "You made {manualEdits}. Keep {keepThem} with the new rule?"
 msgid "You need to approve the rewrite yourself, even in Auto mode."
 msgstr "You need to approve the rewrite yourself, even in Auto mode."
 
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "Your account has changes this book has not read yet."
-msgstr "Your account has changes this book has not read yet."
-
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "Your account keeps the other device’s version. This device’s words stay only in this browser."
-msgstr "Your account keeps the other device’s version. This device’s words stay only in this browser."
+msgid "Your account has the changes."
+msgstr "Your account has the changes."
 
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -28330,6 +28347,11 @@ msgstr "Your instructions to the agent"
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Your later changes are in other parts of the project, so this can be taken back on its own and they stay. Restore takes them back too."
 msgstr "Your later changes are in other parts of the project, so this can be taken back on its own and they stay. Restore takes them back too."
+
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Your latest edits aren’t ready to send."
+msgstr "Your latest edits aren’t ready to send."
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words

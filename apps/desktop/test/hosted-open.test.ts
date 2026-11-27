@@ -8,8 +8,8 @@ import { MemoryArtifactFs, MemoryIndexedDb, openRuntimeStore, writeProject, type
 
 import { setActiveAppDb } from '../src/app/app-db.js';
 import { type Opened } from '../src/app/lifecycle.js';
-import { openHostedProject } from '../src/app/hosted-open.js';
-import { HostedTarget, type HostedQueuePort, type HostedReplay } from '../src/app/hosted-target.js';
+import { openCurrentHostedProject, openHostedProject } from '../src/app/hosted-open.js';
+import { HostedTarget, type HostedQueuePort } from '../src/app/hosted-target.js';
 import { forgetHostedTarget, hostedTargetFor } from '../src/app/hosted-target-registry.js';
 import type { HostedProjectSource } from '../src/app/studio-host.js';
 import { IDS, project } from '../../../e2e/unit/fixtures.js';
@@ -19,7 +19,7 @@ const BOOK = project();
 const COVER = `assets/p_2K4Q9WJ1TT.png`;
 
 const SOURCE: HostedProjectSource = {
-  projectId: 'p_fixture',
+  projectId: BOOK.manifest.project.id,
   origin: 'https://studio.example',
   device: 'tab_one',
   key: {} as never,
@@ -53,23 +53,19 @@ function queue(startingWith: readonly string[] = []): HostedQueuePort & { calls:
   const calls: string[] = [];
   return {
     calls,
-    hold: (changes) => {
+    stage: (changes) => {
       calls.push(`hold:${changes.map((change) => change.path).join(',')}`);
       for (const change of changes) held.add(change.path);
     },
-    replay: async (): Promise<HostedReplay> => {
+    send: async () => {
       calls.push('send');
       held.clear();
-      return { kind: 'sent', count: 1 };
+      return { kind: 'accepted', changes: [] };
     },
-    forget: (paths) => {
-      calls.push(`forget:${paths === undefined ? 'all' : paths.join(',')}`);
-      if (paths === undefined) held.clear();
-      else for (const path of paths) held.delete(path);
-    },
-    rebase: (paths) => calls.push(`rebase:${paths.join(',')}`),
     held: () => [...held],
-    marks: () => calls.push('marks'),
+    deferred: () => [],
+    opened: () => undefined,
+    persisted: () => true,
   };
 }
 
@@ -83,8 +79,8 @@ async function targetFor(state: ProjectState = BOOK, holding: readonly string[] 
   const target = new HostedTarget(
     SOURCE.projectId,
     fs as never,
-    (async () => ({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } })) as never,
     port,
+    async () => ({ prepare: async () => ({ changes: [], staged: () => undefined }), accepted: () => undefined }),
   );
   return Object.assign(target, { port });
 }
@@ -112,6 +108,34 @@ it('opens the account’s project under its own id, with its pictures', async ()
   expect(result.copiedFrom).toBeNull();
   expect(result.session.state.documents.get(IDS.sceneA)?.body).toBe('Four little words here');
   expect(Object.keys(await result.session.assets.snapshot())).toContain(COVER);
+});
+
+it('reports a browser save refusal without closing the open editor', async () => {
+  const { session } = await open(BOOK, ['docs/pending.md']);
+  await lastTarget!.sendQueued();
+  vi.spyOn(session, 'saved').mockRejectedValueOnce(new Error('The project could not be saved'));
+  const clear = vi.fn();
+  const show = vi.fn();
+  await openCurrentHostedProject(store, SOURCE, () => true, clear, show, session);
+  expect(clear).not.toHaveBeenCalled();
+  expect(show).not.toHaveBeenCalled();
+  expect(lastTarget!.state()).toEqual({ kind: 'stale', readFailed: 'save' });
+});
+
+it('warns instead of replacing the editor when settling left new work only in memory', async () => {
+  const { session } = await open(BOOK, ['docs/pending.md']);
+  await lastTarget!.sendQueued();
+  const { queue } = lastTarget!;
+  vi.spyOn(queue, 'persisted').mockReturnValue(false);
+  vi.spyOn(session, 'saved').mockImplementationOnce(async () => {
+    queue.stage([{ path: 'docs/waiting.md', base: 1, bytes: new Uint8Array([1]) }]);
+  });
+  const clear = vi.fn();
+  const show = vi.fn();
+  await openCurrentHostedProject(store, SOURCE, () => true, clear, show, session);
+  expect(clear).not.toHaveBeenCalled();
+  expect(show).not.toHaveBeenCalled();
+  expect(lastTarget!.state()).toEqual({ kind: 'stale', readFailed: 'queue' });
 });
 
 it('opens the same project again in place, not as a second copy of itself whose id it would save into the account', async () => {
@@ -183,7 +207,7 @@ it('says the words a save could not deliver are still here, and sends nothing on
   // The account's book opens, and the queue is left exactly as the last session left it: an open that replayed on its own would write to
   // the account without the writer asking.
   expect(result.session.state.documents.get(IDS.sceneA)?.body).toBe('Four little words here');
-  expect(hostedTargetFor(SOURCE.projectId)?.state()).toEqual({ kind: 'unsaved', paths: [path] });
+  expect(hostedTargetFor(SOURCE.projectId)?.state()).toEqual({ kind: 'unsaved', paths: [path], persisted: true });
   expect(lastTarget?.port.held()).toEqual([path]);
   expect(lastTarget?.port.calls.filter((call) => call === 'send')).toEqual([]);
 });

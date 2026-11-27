@@ -32,7 +32,7 @@ import {
 import { ArtifactNotFoundError, assertContained, joinPath, type ArtifactFs } from '@caotang/store';
 import { BlobPreconditionFailedError, type Precondition, type RemoteBlobStore } from './blob-store.js';
 import { RemoteConflictError, RemoteIntegrityError } from './errors.js';
-import { Manifest, type FileEntry } from './manifest.js';
+import { Manifest, isBatchId, type FileEntry } from './manifest.js';
 
 const MANIFEST_BLOB = 'manifest';
 const COUNTER_BYTES = 8;
@@ -205,7 +205,28 @@ export class EncryptedRemoteArtifactFs implements ArtifactFs {
     return this.#exclusive(() => this.#apply(changes, dirs));
   }
 
-  async #apply(changes: readonly RemoteChange[], wanted: readonly string[] = []): Promise<void> {
+  versionSnapshot(): ReadonlyMap<string, number> {
+    return new Map([...this.#manifest.files].map(([path, entry]) => [path, entry.version]));
+  }
+
+  hasAcceptedBatch(id: string): boolean {
+    return this.#manifest.receipts.includes(id);
+  }
+
+  async commitEditBatch(id: string, changes: readonly (RemoteChange & { readonly base: number })[]): Promise<void> {
+    if (!isBatchId(id) || changes.length === 0) throw new Error('Invalid edit batch');
+    return this.#exclusive(async () => {
+      if (this.#manifest.receipts.includes(id)) return;
+      const moved = changes.filter((change) => this.versionOf(change.path) !== change.base);
+      if (moved.length > 0) {
+        const paths = moved.map(({ path }) => path);
+        throw new RemoteConflictError(paths[0]!, paths, new Map(paths.map((path) => [path, this.versionOf(path)])));
+      }
+      await this.#apply(changes, [], id);
+    });
+  }
+
+  async #apply(changes: readonly RemoteChange[], wanted: readonly string[] = [], batchId?: string): Promise<void> {
     const seen = new Set<string>();
     for (const change of changes) {
       assertContained(change.path);
@@ -238,8 +259,9 @@ export class EncryptedRemoteArtifactFs implements ArtifactFs {
       await this.#put(blob, sealed, { ifNoneMatch: '*' }, change.path);
       prepared.push({ path: change.path, previous, next: { hash, version, blob, deleted: false } });
     }
-    if (prepared.length === 0 && dirs.size === 0) return;
-    await this.#commitBatch(prepared, base, [...dirs]);
+    if (prepared.length === 0 && dirs.size === 0 && batchId === undefined) return;
+    const touched = batchId === undefined ? prepared.map(({ path }) => path) : [...seen];
+    if (!await this.#commitBatch(prepared, base, [...dirs], touched, batchId)) return;
     // A replaced or removed version stays on the server for its soft-delete window and is not read again.
     for (const change of prepared) {
       if (change.previous !== undefined && !change.previous.deleted) await this.#discard(change.previous.blob);
@@ -247,21 +269,27 @@ export class EncryptedRemoteArtifactFs implements ArtifactFs {
   }
 
   /** The index swap, merged onto an unrelated concurrent commit rather than refused by it. */
-  async #commitBatch(prepared: readonly PreparedChange[], base: Manifest, dirs: readonly string[]): Promise<void> {
+  async #commitBatch(prepared: readonly PreparedChange[], base: Manifest, dirs: readonly string[], touched: readonly string[], batchId?: string): Promise<boolean> {
     for (let attempt = 1; ; attempt += 1) {
       const files = new Map(this.#manifest.files);
       for (const change of prepared) files.set(change.path, change.next);
       const listing = new Set(this.#manifest.dirs);
       for (const dir of dirs) listing.add(dir);
       try {
-        await this.#commit(files, listing, prepared[0]?.path ?? dirs[0] ?? '');
-        return;
+        await this.#commit(files, listing, touched[0] ?? dirs[0] ?? '', batchId);
+        return true;
       } catch (cause) {
         if (!(cause instanceof RemoteConflictError)) throw cause;
         const remote = await this.#read();
         if (remote === null) throw cause;
-        const moved = prepared.filter((change) => !sameEntry(base.files.get(change.path), remote.manifest.files.get(change.path)));
-        if (moved.length > 0) throw new RemoteConflictError(moved[0]!.path, moved.map((change) => change.path));
+        if (batchId !== undefined && remote.manifest.receipts.includes(batchId)) {
+          this.#adopt(remote);
+          return false;
+        }
+        const moved = touched.filter((path) => !sameEntry(base.files.get(path), remote.manifest.files.get(path)));
+        if (moved.length > 0) {
+          throw new RemoteConflictError(moved[0]!, moved, new Map(moved.map((path) => [path, remote.manifest.files.get(path)?.version ?? 0])));
+        }
         if (attempt >= COMMIT_ATTEMPTS) throw cause;
         // Another device committed a file this batch does not touch: keep its work and swap again on top of it.
         this.#adopt(remote);
@@ -274,8 +302,10 @@ export class EncryptedRemoteArtifactFs implements ArtifactFs {
    * older edit compares this with what it recorded to tell whether another device moved the file in between.
    */
   versionOf(path: string): number {
-    const entry = this.#manifest.files.get(path);
-    return entry === undefined || entry.deleted ? 0 : entry.version;
+    // A tombstone keeps its version. A path another device created and then deleted is a movement even though it is absent again, and
+    // reporting zero would let an edit staged while the path was missing look untouched — its base would match and a replay would revive
+    // a file the other device deleted.
+    return this.#manifest.files.get(path)?.version ?? 0;
   }
 
   async listFiles(dir: string): Promise<string[]> {
@@ -368,8 +398,8 @@ export class EncryptedRemoteArtifactFs implements ArtifactFs {
   }
 
   /** The commit point: the next manifest replaces exactly the one this device read. */
-  async #commit(files: Map<string, FileEntry>, dirs: Set<string>, path: string): Promise<void> {
-    const next = this.#manifest.next(files, dirs);
+  async #commit(files: Map<string, FileEntry>, dirs: Set<string>, path: string, batchId?: string): Promise<void> {
+    const next = this.#manifest.next(files, dirs, batchId);
     const sealed = await sealManifest(this.#key, { projectId: this.#projectId, version: next.counter }, next.serialize(), this.#random);
     const wire = new Uint8Array(COUNTER_BYTES + sealed.length);
     new DataView(wire.buffer).setBigUint64(0, BigInt(next.counter));
