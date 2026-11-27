@@ -249,7 +249,7 @@ describe('the Kanka entities (#293)', () => {
     const withDataUri = {
       ...CAMPAIGN,
       'characters/elena_11.json': entity(11, 'Elena', {
-        entry: '<p>Before <img src="DATA:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="embedded"/> after.</p>',
+        entry: '<p>Before <img src="DATA:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="embedded"/> and <img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="other"/> after.</p>',
       }),
     };
     const read = await readKanka(zipOf(withDataUri));
@@ -258,6 +258,7 @@ describe('the Kanka entities (#293)', () => {
     const loss = read.value.losses.find((row) => row.code === 'image-unreadable');
     expect(loss?.message).toContain('an embedded picture');
     expect(loss?.message).not.toContain('R0lGODlh');
+    expect(read.value.losses.filter((row) => row.code === 'image-unreadable' && row.message?.includes('an embedded picture'))).toHaveLength(2);
   });
 
   it('never lets a script’s text through, even when an entry is not readable HTML', async () => {

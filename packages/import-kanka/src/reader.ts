@@ -167,8 +167,8 @@ export async function readKankaArchive(archive: ImportArchive, options: KankaRea
   const unsupportedPicturePaths = new Set<string>();
 
   /** Name bytes the picture pipeline would refuse, once per picture, instead of letting them reject the whole import. */
-  const noteUnsupportedPicture = (name: string, why: PictureRefusal): void => {
-    const key = `${name}:${why}`;
+  const noteUnsupportedPicture = (name: string, why: PictureRefusal, identity = name): void => {
+    const key = `${identity}:${why}`;
     if (unsupportedPictures.has(key)) return;
     unsupportedPictures.add(key);
     const reason = why === 'format' ? 'is not a PNG, JPEG or WebP picture' : 'is larger than a picture may be (16 MB and 50 megapixels)';
@@ -231,7 +231,7 @@ export async function readKankaArchive(archive: ImportArchive, options: KankaRea
       }
       const why = pictureRefusal(data);
       if (why !== undefined) {
-        noteUnsupportedPicture(/^data:/i.test(target) ? 'an embedded picture' : target, why);
+        noteUnsupportedPicture(/^data:/i.test(target) ? 'an embedded picture' : target, why, imageRef);
         body = withoutImageRef(body, imageRef);
         continue;
       }
