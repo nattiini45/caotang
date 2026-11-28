@@ -83,6 +83,10 @@ export const BUDGET = {
     // on use (the exporter, the hosted open) read it too, and the default splitting carved it into a chunk per module for them, at 2.6 kB
     // gzip more in the first load than the hosted path itself weighs. Splitting it again means paying that back. The cap is the
     // measurement plus about 1%.
+    // CSV/TSV import (#288): startup modules shared with lazy readers are layered into app-shared (777.2 kB raw measured)
+    // and package-shared (529.8 kB raw measured) instead of dozens of small chunks. The caps are those measurements plus about 1%.
+    'app-shared': 785_000,
+    'package-shared': 535_000,
     'vendor-store': 702_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
@@ -240,8 +244,8 @@ export const BUDGET = {
   // (1,127.8 kB, because the hosted chunks share the store either way), and the hosted open importing the store dynamically
   // (1,161.8 kB: a dynamic import of a barrel pulls its whole re-export graph into shared chunks). The notice's English text is in the
   // entry catalogue as every screen's is, 0.7 kB of that chunk.
-  // CSV/TSV import (#288): measured 1,159,543 bytes gzip on the merge-base build. The reader and its mapping UI are lazy; the growth is the English catalogue every screen must carry before first paint, plus the import-tree scene-metadata validation in the store. The same feature reshuffled Rolldown's shared chunks, so the measured sum rises almost byte-for-byte with the new raw text. No dependency or eagerly loaded reader was added. The ceiling is the measurement plus about 1%. [bundle-raise rule 2026-11-27]
-  initialGzip: 1_171_200,
+  // CSV/TSV import (#288) measured 1,103,083 bytes gzip after the shared startup modules were layered; the reader and mapping UI stay lazy.
+  initialGzip: 1_126_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).

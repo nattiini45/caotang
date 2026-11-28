@@ -192,11 +192,13 @@ describe('Modern: the lazy chunk, the stylesheets and Modern first load (modern-
     expect(BUDGET.totalJs).toBe(9_228_000);
   });
 
-  it('pins the approved ceilings: all JS 9,228,000 bytes and the first load 1,171,200 gzip', () => {
+  it('pins the approved ceilings: all JS 9,228,000 bytes and the first load 1,126,000 gzip', () => {
     expect(BUDGET.totalJs).toBe(9_228_000);
     expect(BUDGET.allow.index).toBeUndefined();
+    expect(BUDGET.allow['app-shared']).toBe(785_000);
+    expect(BUDGET.allow['package-shared']).toBe(535_000);
     expect(BUDGET.allow['vendor-store']).toBe(702_000);
-    expect(BUDGET.initialGzip).toBe(1_171_200);
+    expect(BUDGET.initialGzip).toBe(1_126_000);
   });
 });
 
