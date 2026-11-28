@@ -11484,11 +11484,6 @@ msgstr "Allgemeiner Agent"
 msgid "Generation mode"
 msgstr "Generierungsmodus"
 
-#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
-#: apps/desktop/src/import-preview/plottr-source.ts
-msgid "GIF images were left out because Caotang picture imports keep PNG, JPEG and WebP."
-msgstr "GIF-Bilder wurden ausgelassen, weil Caotang-Bildimporte PNG, JPEG und WebP behalten."
-
 #. Interpolated values: name
 #: apps/desktop/src/components/VocabularyEditor.tsx
 msgid "Give the {kind, select, status {status} label {label} other {status}} a name."
@@ -27653,6 +27648,11 @@ msgstr "Unzuverlässiger Erzähler"
 #: apps/desktop/src/import-preview/plottr-source.ts
 msgid "Unsorted cards"
 msgstr "Unsortierte Karten"
+
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "Unsupported embedded images were left out because Caotang picture imports keep PNG, JPEG and WebP."
+msgstr "Nicht unterstützte eingebettete Bilder wurden ausgelassen, weil Caotang-Bildimporte PNG, JPEG und WebP behalten."
 
 #. Interpolated values: completion, count, levels, prompt, window
 #: apps/desktop/src/app/provider-details.ts

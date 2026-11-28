@@ -47,7 +47,7 @@ export function plottrPreviewSource(fileName: string, bytes: Uint8Array): Plottr
   const charactersById = () => new Map((read?.characters ?? []).map((entity) => [entity.id, entity.name]));
   const placesById = () => new Map((read?.places ?? []).map((entity) => [entity.id, entity.name]));
   const image = (id: string | undefined) => read?.images.find((item) => item.id === id);
-  const supported = (item: { mime: string }): boolean => item.mime !== 'image/gif';
+  const supported = (item: { mime: string }): boolean => item.mime === 'image/png' || item.mime === 'image/jpeg' || item.mime === 'image/webp';
   const picturesOn = () => currentSettings?.options[PICTURES] !== false;
   const imageMarkdown = (id: string | undefined, alt: string): string => {
     const item = image(id);
@@ -167,7 +167,7 @@ export function plottrPreviewSource(fileName: string, bytes: Uint8Array): Plottr
     for (const name of dropped) losses.push({ message: t`The plotline ${{ value: name }} had no other scene to use as its payoff.` });
     if (data.lines.some((line) => line.series && data.books.length > 1)) losses.push({ message: t`Series-level plotlines outside the chosen book were not imported.` });
     if (data.unknownKeys.length > 0) losses.push({ message: t`Unknown Plottr fields were left out: ${{ value: data.unknownKeys.join(', ') }}` });
-    if (data.images.some((item) => !supported(item))) losses.push({ message: t`GIF images were left out because Caotang picture imports keep PNG, JPEG and WebP.` });
+    if (data.images.some((item) => !supported(item))) losses.push({ message: t`Unsupported embedded images were left out because Caotang picture imports keep PNG, JPEG and WebP.` });
     if (data.imageBytesDropped > 0) losses.push({ message: t`Some embedded Plottr images were left out because they exceed the image limits.` });
     return { tree: roots, blocks, losses, scenes: scenes.length, words };
   };

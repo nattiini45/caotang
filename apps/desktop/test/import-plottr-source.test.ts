@@ -92,13 +92,16 @@ describe('plottrPreviewSource', () => {
     expect(secondPlan.tree[0]?.children?.map((node) => node.title)).toEqual(['Second card']);
   });
 
-  it('leaves a GIF out with a named loss instead of aborting the outline', async () => {
+  it('leaves unsupported images out with a named loss instead of aborting the outline', async () => {
     const raw = JSON.parse(new TextDecoder().decode(fixture('simple-story.pltr'))) as Record<string, unknown>;
     raw['images'] = { 1: { id: 1, name: 'Motion', data: 'data:image/gif;base64,R0lGODdhAQABAIAAAP///////ywAAAAAAQABAAACAkQBADs=' } };
     const source = await openBytes('gif.pltr', new TextEncoder().encode(JSON.stringify(raw)));
     const plan = source.plan(settings(source), { noSplit: [], sceneAt: [], chapterAt: [] });
     expect(source.pictures?.()).toEqual([]);
-    expect(plan.losses.map((loss) => loss.message).join('\n')).toContain('GIF images were left out');
+    expect(plan.losses.map((loss) => loss.message).join('\n')).toContain('Unsupported embedded images were left out');
+    raw['images'] = { 1: { id: 1, name: 'Vector', data: 'data:image/svg+xml;base64,PHN2Zy8+' } };
+    const svgSource = await openBytes('svg.pltr', new TextEncoder().encode(JSON.stringify(raw)));
+    expect(svgSource.pictures?.()).toEqual([]);
   });
 
   it('turning images off removes picture markdown and codex visual references', async () => {
