@@ -197,7 +197,7 @@ describe('Modern: the lazy chunk, the stylesheets and Modern first load (modern-
     expect(BUDGET.allow.index).toBeUndefined();
     expect(BUDGET.allow['app-shared']).toBe(785_000);
     expect(BUDGET.allow['package-shared']).toBe(535_000);
-    expect(BUDGET.allow['vendor-store']).toBe(702_000);
+    expect(BUDGET.allow['vendor-store']).toBe(710_000);
     expect(BUDGET.initialGzip).toBe(1_126_000);
   });
 });

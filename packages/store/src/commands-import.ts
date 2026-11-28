@@ -99,6 +99,7 @@ function importTreeApply(clock: ApplyClock, assets: ProjectAssetPort): ProjectAp
     // 2. The pictures: the only await. Their compensation is held and run inside this command's one restore.
     let takePicturesBack: (() => void) | undefined;
     const paths = new Map<string, string>();
+    const assetIds = new Map<string, string>();
     const pictures = params.pictures ?? [];
     if (pictures.length > 0) {
       const held: ApplyContext = {
@@ -120,6 +121,7 @@ function importTreeApply(clock: ApplyClock, assets: ProjectAssetPort): ProjectAp
       for (const [index, picture] of pictures.entries()) {
         const path = stored[index]?.path;
         if (path !== undefined) paths.set(picture.ref, `../${path}`);
+        assetIds.set(picture.ref, stored[index]?.assetId ?? '');
       }
     }
 
@@ -219,8 +221,9 @@ function importTreeApply(clock: ApplyClock, assets: ProjectAssetPort): ProjectAp
           includePolicy: (op.includePolicy as CodexIncludePolicy | undefined) ?? 'detected',
           caseSensitive: op.caseSensitive ?? false,
           exclude: [...(op.exclude ?? [])],
-          attachments: [docId],
+          attachments: [docId, ...(op.alsoAttach ?? []).flatMap((at) => ids[at] === undefined || ids[at] === docId ? [] : [ids[at] as string])],
           keywords: [...(op.keywords ?? [])],
+          ...(op.visualRefs === undefined ? {} : { visualRefs: op.visualRefs.map((ref) => assetIds.get(ref) ?? ref).filter((ref) => ref !== '') }),
           origin: 'import',
           sources: [{ docId, quote: op.cite.quote, from, to, extractedAt: stamp }],
           createdAt: stamp,

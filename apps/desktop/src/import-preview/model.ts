@@ -159,6 +159,10 @@ export interface PreviewCodexRow {
   readonly aliases?: readonly string[];
   /** The include policy the source asks for: a private entity is `'manual'`, never detected into a prompt. */
   readonly includePolicy?: string;
+  /** Picture refs (`import:…`) the entry uses as visual references after the import stores them. */
+  readonly visualRefs?: readonly string[];
+  /** Preview node ids of imported research documents this entry also attaches to. */
+  readonly attachmentNodes?: readonly string[];
   /**
    * The row's page is its own text and is created even when the name also appears in the imported documents (a Kanka entity,
    * whose name is in the world-history index). Without it, a name found in the tree is cited there and no page is made.
@@ -777,16 +781,21 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
       ...(row.keywords === undefined || row.keywords.length === 0 ? {} : { keywords: [...row.keywords] }),
       ...(row.aliases === undefined || row.aliases.length === 0 ? {} : { aliases: [...row.aliases] }),
       ...(row.includePolicy === undefined ? {} : { includePolicy: row.includePolicy }),
+      ...(row.visualRefs === undefined || row.visualRefs.length === 0 ? {} : { visualRefs: [...row.visualRefs] }),
     };
+    const extra = (row.attachmentNodes ?? []).flatMap((id) => {
+      const at = indexOf.get(id);
+      return at === undefined ? [] : [at];
+    });
     const cite = row.preferPage === true ? undefined : citeOf(row, nodes, indexOf);
     if (cite !== undefined) {
-      entries.push({ ...base, node: cite.node, cite: { from: cite.from, to: cite.to, quote: cite.quote } });
+      entries.push({ ...base, ...(extra.length === 0 ? {} : { alsoAttach: extra }), node: cite.node, cite: { from: cite.from, to: cite.to, quote: cite.quote } });
       continue;
     }
     if (row.page !== undefined && row.page.body.includes(row.name)) {
       pages.push({ title: row.page.title, body: row.page.body });
       const from = row.page.body.indexOf(row.name);
-      entries.push({ ...base, page: pages.length - 1, cite: { from, to: from + row.name.length, quote: row.name } });
+      entries.push({ ...base, ...(extra.length === 0 ? {} : { alsoAttach: extra }), page: pages.length - 1, cite: { from, to: from + row.name.length, quote: row.name } });
       continue;
     }
     const rowName = row.name;
@@ -796,7 +805,8 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
   // The pictures the kept bodies use, and only those — codex pages' bodies count too, since an entity page carries
   // its picture.
   const bodies = [...nodes.map((node) => node.body ?? ''), ...pages.map((page) => page.body)].join('\n');
-  const pictures = input.pictures.filter((picture) => bodies.includes(`](${picture.ref}`));
+  const visualRefs = new Set(entries.flatMap((entry) => entry.visualRefs ?? []));
+  const pictures = input.pictures.filter((picture) => bodies.includes(`](${picture.ref}`) || visualRefs.has(picture.ref));
   const dropped = input.pictures.length - pictures.length;
   if (dropped > 0) {
     const count = plural(dropped, { one: '# picture', other: '# pictures' });

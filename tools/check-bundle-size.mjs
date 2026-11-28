@@ -82,12 +82,14 @@ export const BUDGET = {
     // The project store: 695.7 kB raw, 212.5 kB gzip, every view that loads first reads it. It is one chunk because the chunks that load
     // on use (the exporter, the hosted open) read it too, and the default splitting carved it into a chunk per module for them, at 2.6 kB
     // gzip more in the first load than the hosted path itself weighs. Splitting it again means paying that back. The cap is the
-    // measurement plus about 1%.
+    // measurement plus about 1%. Plottr import (#290) adds the import-only visual-reference and linked-note attachment resolution,
+    // measured 702.7 kB after keeping those fields out of the general codex batch validator; the cap is that measurement plus about 1%,
+    // rounded up to the thousand.
     // CSV/TSV import (#288): startup modules shared with lazy readers are layered into app-shared (777.2 kB raw measured)
     // and package-shared (529.8 kB raw measured) instead of dozens of small chunks. The caps are those measurements plus about 1%.
     'app-shared': 785_000,
     'package-shared': 535_000,
-    'vendor-store': 702_000,
+    'vendor-store': 710_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
   // 772.4 kB measured with Colour emoji, against 769.1 kB before it; 779.3 kB with Colour emoji and Agent rules together (Wave 14); 786.4 kB with the agent run log and resume.

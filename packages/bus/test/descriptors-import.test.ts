@@ -104,6 +104,20 @@ describe('binder.importTree — the descriptor', () => {
     expect(failuresOf(binderImportTree.validate({ nodes: BOOK, codex: { entries: [{ name: 'Mara', node: 1, cite: { from, to: from + 4, quote: 'Mara' } }] } }, makeSnapshot()))[0]?.target).toBe('codex.entries[0].node');
   });
 
+  it('keeps visualRefs and linked note attachments inside the import and validates them whole', () => {
+    const from = SCENE.indexOf('Mara');
+    const params = {
+      nodes: BOOK,
+      pictures: [{ ref: 'import:plottr-image-1', stagingId: 'stg_1' }],
+      codex: { entries: [{ name: 'Mara', type: 'character', node: 2, cite: { from, to: from + 4, quote: 'Mara' }, visualRefs: ['import:plottr-image-1'], alsoAttach: [3] }] },
+    };
+    const result = binderImportTree.validate(params, makeSnapshot());
+    expect(result.ok, result.ok ? '' : result.error.message).toBe(true);
+    if (result.ok) expect(result.value.codex?.entries[0]).toMatchObject({ visualRefs: ['import:plottr-image-1'], alsoAttach: [3] });
+    const bad = failuresOf(binderImportTree.validate({ ...params, codex: { entries: [{ ...params.codex.entries[0], visualRefs: ['import:missing'], alsoAttach: [0, 3, 3] }] } }, makeSnapshot()));
+    expect(bad.map((failure) => failure.target)).toEqual(['codex.entries[0].visualRefs', 'codex.entries[0].alsoAttach']);
+  });
+
   it('rewrites imported scene declarations to codex ids and pending payoff scenes', () => {
     const nodes = [
       { type: 'folder', title: 'C' },

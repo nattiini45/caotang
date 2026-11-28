@@ -14,6 +14,7 @@ import type { ParagraphMode, PlainTextRead } from '@caotang/import-read/text';
 import type { CaptionsResult } from '@caotang/import-captions';
 import type { TableDelimiter, TableParseResult } from '@caotang/import-table';
 import type { XlsxResult } from '@caotang/import-xlsx';
+import type { PlottrResult } from '@caotang/import-plottr';
 import type { InklewriterResult } from '@caotang/import-inklewriter';
 import type { HighlandResult } from '@caotang/import-highland';
 import type { RtfImport } from '@caotang/import-rtf';
@@ -31,6 +32,7 @@ export type ReaderOpen =
   | { readonly kind: 'open'; readonly reader: 'captions'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'table'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'xlsx'; readonly bytes: Uint8Array }
+  | { readonly kind: 'open'; readonly reader: 'plottr'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'rtf'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'rtfd'; readonly files: readonly { readonly path: string; readonly size: number; readonly bytes: Uint8Array }[] }
   | { readonly kind: 'open'; readonly reader: 'rtfd-zip'; readonly bytes: Uint8Array }
@@ -50,6 +52,7 @@ export type ReaderRead =
   | { readonly kind: 'read'; readonly reader: 'captions'; readonly encoding?: DecodableEncoding }
   | { readonly kind: 'read'; readonly reader: 'table'; readonly encoding?: DecodableEncoding; readonly delimiter?: TableDelimiter }
   | { readonly kind: 'read'; readonly reader: 'xlsx'; readonly sheet?: string }
+  | { readonly kind: 'read'; readonly reader: 'plottr' }
   | { readonly kind: 'read'; readonly reader: 'rtf' | 'rtfd'; readonly underlineAs?: 'italic' | 'none'; readonly assetPrefix?: string }
   | { readonly kind: 'read'; readonly reader: 'inklewriter'; readonly fileName?: string }
   | { readonly kind: 'read'; readonly reader: 'html' }
@@ -71,6 +74,7 @@ export type ReaderResult =
   | { readonly kind: 'captions'; readonly result: CaptionsReadResult }
   | { readonly kind: 'table'; readonly result: TableReadResult }
   | { readonly kind: 'xlsx'; readonly result: XlsxResult }
+  | { readonly kind: 'plottr'; readonly result: PlottrResult }
   | { readonly kind: 'rtf'; readonly result: SerializableRtfResult }
   | { readonly kind: 'inklewriter'; readonly result: InklewriterResult }
   | { readonly kind: 'html'; readonly result: HtmlResult }

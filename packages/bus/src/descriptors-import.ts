@@ -24,7 +24,7 @@
 import type { CodexImportBatchEntry, CodexImportPage, CommandDescriptor, ValidationNode, ValidationSnapshot } from './command.js';
 import { THREAD_NOTE_LIMIT, type SceneMetaRecord } from './coherence.js';
 import { codexImportBatch } from './descriptors-codex-import.js';
-import { CHAPTERLESS_DOCUMENT_REFUSAL, KEYWORD_CHARS_MAX, KEYWORDS_MAX, NOTES_MAX, SYNOPSIS_MAX } from './descriptors.js';
+import { CHAPTERLESS_DOCUMENT_REFUSAL, CODEX_VISUAL_REFS_MAX, KEYWORD_CHARS_MAX, KEYWORDS_MAX, NOTES_MAX, SYNOPSIS_MAX } from './descriptors.js';
 import { ok, type CommandError, type PerOpFailure, type Result } from './result.js';
 import { batchRefusal, invalid, isContainer, isRecord, limitExceeded, notFound, requireDeclaredParams, showValue } from './params.js';
 
@@ -79,7 +79,7 @@ const IMPORT_TREE_DOCUMENT_KINDS = ['screenplay', 'av-script', 'comic-script'] a
 const IMPORT_TREE_FOLDER_KINDS = ['show', 'storyboard'] as const;
 
 /** A codex row: a `codex.importBatch` entry that may name an imported document by its index (`node`). */
-export type ImportTreeCodexEntry = Omit<CodexImportBatchEntry, 'attachTo' | 'page'> & { node?: number; attachTo?: string; page?: number };
+export type ImportTreeCodexEntry = Omit<CodexImportBatchEntry, 'attachTo' | 'page'> & { node?: number; attachTo?: string; page?: number; visualRefs?: string[]; alsoAttach?: number[] };
 
 export type ImportTreePicture = { ref: string; stagingId: string; alt?: string; caption?: string };
 
@@ -299,6 +299,7 @@ export const binderImportTree: CommandDescriptor<ImportTreeParams> = {
     // The pictures: staged bytes, each with a ref the bodies use. A ref no body uses is still stored (the reader listed it).
     const rawPictures = p.value['pictures'];
     const pictures: ImportTreePicture[] = [];
+    const pictureRefs = new Set<string>();
     if (rawPictures !== undefined) {
       if (!Array.isArray(rawPictures)) return invalid(`params.pictures must be an array, got ${showValue(rawPictures)}`, undefined, 'pictures');
       if (rawPictures.length > IMPORT_TREE_PICTURES_MAX) {
@@ -326,6 +327,7 @@ export const binderImportTree: CommandDescriptor<ImportTreeParams> = {
           continue;
         }
         refs.add(ref);
+        pictureRefs.add(ref);
         staged.add(stagingId);
         pictures.push({ ref, stagingId, ...(alt === undefined ? {} : { alt }), ...(caption === undefined ? {} : { caption }) });
       }
@@ -340,9 +342,28 @@ export const binderImportTree: CommandDescriptor<ImportTreeParams> = {
       }
       const entries = rawCodex['entries'] as unknown[];
       const mapped: unknown[] = [];
+      const visualRefs = new Map<number, string[]>();
+      const alsoAttach = new Map<number, number[]>();
       for (const [index, entry] of entries.entries()) {
+        if (isRecord(entry) && entry['visualRefs'] !== undefined) {
+          const refs = entry['visualRefs'];
+          if (!Array.isArray(refs) || refs.length > CODEX_VISUAL_REFS_MAX || refs.some((ref) => typeof ref !== 'string' || !pictureRefs.has(ref)) || new Set(refs).size !== refs.length) {
+            failures.push({ target: `codex.entries[${index}].visualRefs`, code: 'invalid-params', message: `codex.entries[${index}]: visualRefs must be at most 10 distinct picture refs of this import` });
+          } else visualRefs.set(index, refs as string[]);
+        }
+        if (isRecord(entry) && entry['alsoAttach'] !== undefined) {
+          const extra = entry['alsoAttach'];
+          if (!Array.isArray(extra) || extra.length > 20 || new Set(extra).size !== extra.length || extra.some((at) => typeof at !== 'number' || !Number.isInteger(at) || nodes[at]?.type !== 'document')) {
+            failures.push({ target: `codex.entries[${index}].alsoAttach`, code: 'invalid-params', message: `codex.entries[${index}]: alsoAttach must name imported documents, once each` });
+          } else alsoAttach.set(index, extra as number[]);
+        }
         if (!isRecord(entry) || entry['node'] === undefined) {
-          mapped.push(entry);
+          if (isRecord(entry)) {
+            const copy = { ...entry };
+            delete copy['visualRefs'];
+            delete copy['alsoAttach'];
+            mapped.push(copy);
+          } else mapped.push(entry);
           continue;
         }
         const at = entry['node'];
@@ -351,7 +372,7 @@ export const binderImportTree: CommandDescriptor<ImportTreeParams> = {
           mapped.push(entry);
           continue;
         }
-        const { node: _node, ...rest } = entry;
+        const { node: _node, visualRefs: _refs, alsoAttach: _extra, ...rest } = entry;
         mapped.push({ ...rest, attachTo: `${PENDING_IMPORT_PREFIX}${at}` });
       }
       if (failures.length === 0) {
@@ -361,10 +382,13 @@ export const binderImportTree: CommandDescriptor<ImportTreeParams> = {
           return { ok: false, error: { ...checked.error, message: `codex: ${checked.error.message}`, target: checked.error.target === undefined ? 'codex' : `codex.${checked.error.target}` } };
         }
         codex = {
-          entries: checked.value.entries.map((entry) => {
+          entries: checked.value.entries.map((entry, index) => {
             const { attachTo, ...rest } = entry;
-            if (attachTo?.startsWith(PENDING_IMPORT_PREFIX) === true) return { ...rest, node: Number(attachTo.slice(PENDING_IMPORT_PREFIX.length)) };
-            return attachTo === undefined ? rest : { ...rest, attachTo };
+            const refs = visualRefs.get(index);
+            const extra = alsoAttach.get(index);
+            const withRefs = { ...rest, ...(refs === undefined ? {} : { visualRefs: refs }), ...(extra === undefined ? {} : { alsoAttach: extra }) };
+            if (attachTo?.startsWith(PENDING_IMPORT_PREFIX) === true) return { ...withRefs, node: Number(attachTo.slice(PENDING_IMPORT_PREFIX.length)) };
+            return attachTo === undefined ? withRefs : { ...withRefs, attachTo };
           }),
           ...(checked.value.pages === undefined ? {} : { pages: checked.value.pages }),
         };
