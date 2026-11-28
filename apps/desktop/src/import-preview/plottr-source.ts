@@ -163,7 +163,7 @@ export function plottrPreviewSource(fileName: string, bytes: Uint8Array): Plottr
 
   const plan = (settings: PreviewSettings): PreviewPlan => {
     const shaped = build(settings);
-    return { blocks: shaped.blocks, markers: [], tree: shaped.tree, counts: { words: shaped.words, parts: 0, chapters: shaped.tree.length, scenes: shaped.scenes, images: read?.images.length ?? 0, comments: 0, footnotes: 0 }, losses: shaped.losses, flags: [] };
+    return { blocks: shaped.blocks, markers: [], tree: shaped.tree, counts: { words: shaped.words, parts: 0, chapters: shaped.tree.filter((node) => node.role === 'chapter').length, scenes: shaped.scenes, images: read?.images.length ?? 0, comments: 0, footnotes: 0 }, losses: shaped.losses, flags: [] };
   };
 
   const entityBody = (entity: PlottrRead['characters'][number]): string => {
@@ -188,7 +188,7 @@ export function plottrPreviewSource(fileName: string, bytes: Uint8Array): Plottr
     },
     dispose: () => host.dispose(),
     chips: () => (read !== null && read.books.length > 1 ? [{ id: BOOK, label: t`Book`, value: read.books[0]?.id ?? '', options: read.books.map((book) => ({ value: book.id, label: book.title })) }] : []),
-    options: (): readonly PreviewOption[] => [{ id: PICTURES, label: t`Import embedded images`, checked: true, detail: t`${{ count: read?.images.length ?? 0 }} images` }],
+    options: (): readonly PreviewOption[] => [{ id: PICTURES, label: t`Import embedded images`, checked: true }],
     prepared: () => read !== null,
     plan,
     codexRows: () => {
@@ -208,7 +208,7 @@ export function plottrPreviewSource(fileName: string, bytes: Uint8Array): Plottr
     },
     pictures: () => (read?.images ?? []).map((item) => ({ ref: imageRef(item.id), name: item.name, bytes: item.bytes.length, alt: item.name, data: () => item.bytes })),
     metadata: () => ({ ...(read?.title === undefined ? {} : { title: read.title }) }),
-    report: (plan) => [{ heading: t`What the import does`, label: t`Import shape`, lines: [t`${{ count: plan.counts.scenes }} scene cards become scenes with synopses and empty prose.`, t`${{ characters: read?.characters.length ?? 0 }} characters and ${{ places: read?.places.length ?? 0 }} places become codex entries.`, t`${{ count: read?.notes.length ?? 0 }} Plottr notes become research documents.`] }],
+    report: (plan) => [{ heading: t`What the import does`, label: t`Import shape`, lines: [t`${{ count: plan.counts.scenes }} scene cards become scenes with synopses and empty prose.`, t`Characters: ${{ characters: read?.characters.length ?? 0 }}; places: ${{ places: read?.places.length ?? 0 }}.`, t`Plottr notes: ${{ count: read?.notes.length ?? 0 }}.`] }],
     importLabel: (plan) => t`Import ${{ count: plan.counts.scenes }} scenes`,
   };
   return { ok: true, source };

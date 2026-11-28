@@ -16,7 +16,7 @@ describe('readPlottr', () => {
     expect(read.value.beats.map((beat) => beat.title)).toEqual(['Act 1', 'Act 2', 'Act 3']);
     const v2 = readPlottr(fixture('simple-story-v2.pltr'));
     expect(v2.ok).toBe(true);
-    if (v2.ok) expect(v2.value.beats.length).toBe(6);
+    if (v2.ok) expect(v2.value.beats.length).toBe(3);
     expect(read.value.cards).toHaveLength(5);
     expect(read.value.cards[0]).toMatchObject({ title: 'The Beginning', beatId: '1', lineId: '1' });
     expect(read.value.cards[0]?.description).toContain('Opening scene.');

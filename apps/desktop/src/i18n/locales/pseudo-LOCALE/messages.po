@@ -824,11 +824,6 @@ msgstr ""
 msgid "{characters, plural, one {# of them is a character} other {# of them are characters}}"
 msgstr ""
 
-#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
-#: apps/desktop/src/import-preview/plottr-source.ts
-msgid "{characters} characters and {places} places become codex entries."
-msgstr ""
-
 #. The trace panel's rows. Interpolated values: millis, startMs and durationMs are times; chars, cutChars, replyCut, paramsCut and resultCut are character counts; inTokens, outTokens, estimated, calls and tokenCount are token and call counts; messagesSent, toolsDeclared, tools, sent and attempts describe what was sent; records is a record count; statusNote is a run's status; callId is a tool call id.
 #: apps/desktop/src/components/TracePanel.tsx
 msgid "{chars, plural, one {# character} other {# characters}}"
@@ -1350,11 +1345,6 @@ msgstr ""
 msgid "{count} entries link to nothing."
 msgstr ""
 
-#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
-#: apps/desktop/src/import-preview/plottr-source.ts
-msgid "{count} images"
-msgstr ""
-
 #. The import preview's notices and sentences. Interpolated values: words, partCount, chapters, scenes, images, comments, footnotes and codexRows are counts; megabytes and kilobytes are sizes; label and host name a download option; title, rowName and name are node or row names; documents and folders are the import's own counts; fileName is the file's name.
 #: apps/desktop/src/import-preview/model.ts
 msgid "{count} in left-out text was not imported."
@@ -1388,11 +1378,6 @@ msgstr ""
 #. Folder diff notes. Interpolated values: count, omittedContext, omittedFolderLines and omittedTabLines are omitted-line counts, kind is the line kind.
 #: apps/desktop/src/app/folder-diff.ts
 msgid "{count} more {kind} lines omitted; {backupNote}"
-msgstr ""
-
-#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
-#: apps/desktop/src/import-preview/plottr-source.ts
-msgid "{count} Plottr notes become research documents."
 msgstr ""
 
 #. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
@@ -7290,6 +7275,11 @@ msgstr ""
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "Characters, places and lore that recur in the prose are kept here. Their mentions are found as you write."
+msgstr ""
+
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "Characters: {characters}; places: {places}."
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -17323,6 +17313,11 @@ msgstr ""
 #. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
 #: apps/desktop/src/components/ManuscriptImport.tsx
 msgid "Plottr file"
+msgstr ""
+
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "Plottr notes: {count}."
 msgstr ""
 
 #. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
