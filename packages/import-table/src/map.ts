@@ -104,7 +104,8 @@ export function guessColumnRoles(columns: readonly string[], mode: 'codex' | 'ti
 
 /** Spreadsheet lists use semicolons first; commas and newlines are also separators. */
 export function splitCellList(value: string): string[] {
-  return [...new Set(value.split(/[;,\n]/).map((item) => item.trim()).filter((item) => item !== ''))];
+  const parts = value.includes(';') ? value.split(/[;\n]/) : value.split(/[,\n]/);
+  return [...new Set(parts.map((item) => item.trim()).filter((item) => item !== ''))];
 }
 
 /** Entity names are unique case-insensitively in the codex and coherence metadata; keep the first spelling. */
@@ -119,15 +120,17 @@ function entityNames(values: readonly string[], except: readonly string[] = []):
 }
 
 /** A spreadsheet cell's text without the apostrophe guard that keeps a leading formula character literal. */
-export function tableCellText(value: string): string {
-  const text = value.trim();
+export function tableCellText(value: string, preserveWhitespace = false): string {
+  const text = preserveWhitespace ? value : value.trim();
   return /^'[=+\-@\t\r]/.test(text) ? text.slice(1) : text;
 }
 
-const cell = (row: TableCellRow, index: number): string => tableCellText(row.cells[index] ?? '');
+const PROSE_ROLES: readonly ColumnRole[] = ['description', 'long-text', 'relation', 'detail', 'summary', 'body'];
+
+const cell = (row: TableCellRow, index: number, preserveWhitespace = false): string => tableCellText(row.cells[index] ?? '', preserveWhitespace);
 
 const rowValues = (row: TableCellRow, roles: readonly ColumnRole[], role: ColumnRole): string[] =>
-  roles.flatMap((candidate, index) => (candidate === role ? [cell(row, index)].filter((value) => value !== '') : []));
+  roles.flatMap((candidate, index) => (candidate === role ? [cell(row, index, PROSE_ROLES.includes(role))].filter((value) => value !== '') : []));
 
 export const TYPE_WORDS: Readonly<Record<string, string>> = {
   character: 'character', characters: 'character', person: 'character', people: 'character',
@@ -233,10 +236,11 @@ export function parseDurationDays(value: string): number | undefined {
   const match = /^([+-]?\d+)\s*(days?|weeks?|months?|years?)?$/i.exec(value.trim());
   if (match === null) return undefined;
   const count = Number(match[1]);
+  if (!Number.isSafeInteger(count)) return undefined;
   const unit = (match[2] ?? 'day').toLowerCase();
   const factor = unit.startsWith('week') ? 7 : unit.startsWith('month') ? 30 : unit.startsWith('year') ? 365 : 1;
   const days = count * factor;
-  return Number.isInteger(days) && days >= 0 ? days : undefined;
+  return Number.isSafeInteger(days) && days >= 0 ? days : undefined;
 }
 
 /** Map rows in timeline mode. Absolute dates are epoch days here; the caller re-anchors them against its chosen day zero. */

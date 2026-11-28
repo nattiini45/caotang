@@ -77,6 +77,23 @@ describe('mapCodexRows', () => {
     expect(mapped.rows[0]?.aliases).toEqual(['A.']);
   });
 
+  it('keeps commas inside an alias when semicolons separate the list', () => {
+    const mapped = mapCodexRows(['Name', 'Aliases'], [{ line: 2, cells: ['Ada', 'Smith, Jr.;Charlie'] }], ['name', 'aliases']);
+    expect(mapped.rows[0]?.aliases).toEqual(['Smith, Jr.', 'Charlie']);
+  });
+
+  it('keeps meaningful whitespace in prose cells', () => {
+    const mapped = buildTimelineRows(['Title', 'Summary', 'Body'], [{ line: 2, cells: ['A', '  summary  ', '    code'] }], ['title', 'summary', 'body']);
+    expect(mapped.rows[0]?.summary).toBe('  summary  ');
+    expect(mapped.rows[0]?.body).toBe('    code');
+  });
+
+  it('names an unsafe duration integer instead of rounding it', () => {
+    const mapped = buildTimelineRows(['Title', 'Duration'], [{ line: 2, cells: ['A', '9007199254740993 days'] }], ['title', 'duration']);
+    expect(mapped.rows[0]?.duration).toBeUndefined();
+    expect(mapped.losses).toEqual([expect.objectContaining({ code: 'bad-number', row: 2, column: 'duration' })]);
+  });
+
   it('keeps only the first ten aliases and names the omitted ones', () => {
     const aliases = Array.from({ length: 12 }, (_, index) => `A${index}`).join(';');
     const mapped = mapCodexRows(['Name', 'Aliases'], [{ line: 2, cells: ['Ada', aliases] }], ['name', 'aliases']);

@@ -194,6 +194,7 @@ export function tablePreviewSource(fileName: string, bytes: Uint8Array): TableIm
     if (reply.result.status !== 'read') throw new Error(t`The table text could not be decoded.`);
     if (!reply.result.parse.ok) throw parseFailure(reply.result.parse.error.kind, reply.result.parse.error.limit);
     const value: CachedTable = { encoding: reply.result.encoding, guessed: reply.result.guessed, candidates: reply.result.candidates, parse: reply.result.parse.value };
+    cache.clear();
     cache.set(keyOf(settings), value);
     return value;
   };

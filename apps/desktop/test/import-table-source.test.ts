@@ -15,11 +15,13 @@ import type { ReaderOpen, ReaderRead } from '../src/import-preview/reader-protoc
 import { tablePreviewSource } from '../src/import-preview/table-source.js';
 
 class InProcessWorker {
+  static reads = 0;
   private readonly handle = createReaderSession();
   onmessage: ((event: { data: unknown }) => void) | null = null;
   onerror: ((event: { message: string }) => void) | null = null;
   constructor(_url: unknown, _options?: unknown) {}
   postMessage(message: { id: number } & (ReaderOpen | ReaderRead)): void {
+    if (message.kind === 'read') InProcessWorker.reads += 1;
     void this.handle(message).then(
       (result) => this.onmessage?.({ data: { id: message.id, ok: true, result } }),
       (error: unknown) => this.onmessage?.({ data: { id: message.id, ok: false, error: error instanceof Error ? error.message : String(error) } }),
@@ -31,6 +33,7 @@ class InProcessWorker {
 beforeEach(() => {
   activateEnglish();
   pinFormatLocale('en-US');
+  InProcessWorker.reads = 0;
   vi.stubGlobal('Worker', InProcessWorker);
 });
 afterEach(() => {
@@ -223,6 +226,17 @@ describe('the CSV/TSV preview', () => {
     const first = commit.params.nodes.find((node) => node.title === 'First');
     const payoffIndex = Number(first?.sceneMeta?.threads?.[0]?.payoff.slice('pending:import:'.length));
     expect(commit.params.nodes[payoffIndex]?.title).toBe('Payoff');
+  });
+
+  it('re-reads a previous parse setting instead of retaining every table parse', async () => {
+    const source = await open(bytesOf('Title,Body\nA,B\n'));
+    const initial = initialSettings(source.chips(), source.options());
+    const comma = settingsWith(initial, { 'table-mode': 'timeline', 'table-delimiter': ',' });
+    const semicolon = settingsWith(initial, { 'table-mode': 'timeline', 'table-delimiter': ';' });
+    await source.prepare?.(comma, new AbortController().signal);
+    await source.prepare?.(semicolon, new AbortController().signal);
+    await source.prepare?.(comma, new AbortController().signal);
+    expect(InProcessWorker.reads).toBe(4);
   });
 
   it('reads the UTF-16 Unicode text fixture', async () => {
