@@ -729,7 +729,7 @@ describe('the import preview (#267)', () => {
     expect(read('apps/desktop/src/components/TweeImportDialog.tsx')).toContain('tweePreviewSource(');
     expect(guide).toContain('- **The import preview.** An import that brings in a whole book shows it first as a proposed binder beside its text');
     expect(guide).toContain('one **Undo** takes all of it back, pictures and codex entries included');
-    expect(guide).toContain('**Import Twee**, **Import Inklewriter**, **Import Highland**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import captions…**, **Import spreadsheet…**, **Import Word…**, **Import OpenDocument…**, **Import HTML…**, **Import EPUB…**, **Import AO3…** and **Import Kanka…** open it.');
+    expect(guide).toContain('**Import Twee**, **Import Inklewriter**, **Import Highland**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import captions…**, **Import spreadsheet…**, **Import Plottr…**, **Import Word…**, **Import OpenDocument…**, **Import HTML…**, **Import EPUB…**, **Import AO3…** and **Import Kanka…** open it.');
     expect(guide).toContain('**Import Inklewriter** reads an Inklewriter story export');
     expect(read('apps/desktop/src/components/ScriptImport.tsx')).toContain('inklewriterPreviewSource');
     expect(guide).toContain('**Import RTFD…** an `.rtfd` package');
@@ -769,7 +769,7 @@ describe('the import preview (#267)', () => {
     expect(manuscript).toContain('htmlZipPreviewSource');
     expect(read('apps/desktop/src/components/Binder.tsx')).toContain('<ManuscriptImportActions />');
     const notYet = guide.slice(guide.indexOf('## What is not in this build yet'));
-    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, captions, spreadsheet, Word, OpenDocument, HTML, EPUB, AO3 and Kanka imports open the preview');
+    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, captions, spreadsheet, Plottr, Word, OpenDocument, HTML, EPUB, AO3 and Kanka imports open the preview');
     expect(notYet).not.toContain('There is no **Import RTF** command yet');
     expect(changelog).toContain('**One import preview for every structured import.**');
     expect(read('docs/architecture/import-preview.md')).toContain('## 5. The commit: `binder.importTree`');

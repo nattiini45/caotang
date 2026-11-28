@@ -824,6 +824,11 @@ msgstr ""
 msgid "{characters, plural, one {# of them is a character} other {# of them are characters}}"
 msgstr ""
 
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "{characters} characters and {places} places become codex entries."
+msgstr ""
+
 #. The trace panel's rows. Interpolated values: millis, startMs and durationMs are times; chars, cutChars, replyCut, paramsCut and resultCut are character counts; inTokens, outTokens, estimated, calls and tokenCount are token and call counts; messagesSent, toolsDeclared, tools, sent and attempts describe what was sent; records is a record count; statusNote is a run's status; callId is a tool call id.
 #: apps/desktop/src/components/TracePanel.tsx
 msgid "{chars, plural, one {# character} other {# characters}}"
@@ -1345,6 +1350,11 @@ msgstr ""
 msgid "{count} entries link to nothing."
 msgstr ""
 
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "{count} images"
+msgstr ""
+
 #. The import preview's notices and sentences. Interpolated values: words, partCount, chapters, scenes, images, comments, footnotes and codexRows are counts; megabytes and kilobytes are sizes; label and host name a download option; title, rowName and name are node or row names; documents and folders are the import's own counts; fileName is the file's name.
 #: apps/desktop/src/import-preview/model.ts
 msgid "{count} in left-out text was not imported."
@@ -1378,6 +1388,16 @@ msgstr ""
 #. Folder diff notes. Interpolated values: count, omittedContext, omittedFolderLines and omittedTabLines are omitted-line counts, kind is the line kind.
 #: apps/desktop/src/app/folder-diff.ts
 msgid "{count} more {kind} lines omitted; {backupNote}"
+msgstr ""
+
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "{count} Plottr notes become research documents."
+msgstr ""
+
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "{count} scene cards become scenes with synopses and empty prose."
 msgstr ""
 
 #. Interpolated values: count, path, reason
@@ -1798,6 +1818,21 @@ msgstr ""
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #: apps/desktop/src/import-preview/captions-source.ts
 msgid "{file} holds no timed cue, so there is nothing to import. A captions file needs lines like \"00:00:01,000 --> 00:00:04,000\"."
+msgstr ""
+
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "{file} is larger than one Plottr import reads: at most 25 MB."
+msgstr ""
+
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "{file} is not a Plottr file Caotang can read."
+msgstr ""
+
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "{file} is not readable JSON."
 msgstr ""
 
 #. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
@@ -6347,6 +6382,11 @@ msgstr ""
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Bold"
+msgstr ""
+
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "Book"
 msgstr ""
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
@@ -11926,6 +11966,11 @@ msgstr ""
 msgid "Import “{file}”"
 msgstr ""
 
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "Import “{fileName}”"
+msgstr ""
+
 #. Interpolated values: title
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -11946,6 +11991,11 @@ msgstr ""
 #. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
 #: apps/desktop/src/import-preview/table-source.ts
 msgid "Import {count, plural, one {# row} other {# rows}}"
+msgstr ""
+
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "Import {count} scenes"
 msgstr ""
 
 #. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
@@ -12022,6 +12072,11 @@ msgstr ""
 msgid "harness.progress.codexImport.none.content"
 msgstr ""
 
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "Import embedded images"
+msgstr ""
+
 #. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
 #: apps/desktop/src/components/ManuscriptImport.tsx
 msgid "Import EPUB…"
@@ -12069,6 +12124,11 @@ msgstr ""
 
 #. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
 #: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import Plottr…"
+msgstr ""
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
 msgid "Import RTF…"
 msgstr ""
 
@@ -12080,6 +12140,11 @@ msgstr ""
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Import script"
+msgstr ""
+
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "Import shape"
 msgstr ""
 
 #. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
@@ -12184,6 +12249,11 @@ msgstr ""
 #. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
 #: apps/desktop/src/import-preview/table-source.ts
 msgid "Imported plotline"
+msgstr ""
+
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "Imported Plottr plotline"
 msgstr ""
 
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
@@ -17250,6 +17320,16 @@ msgstr ""
 msgid "Planning"
 msgstr ""
 
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Plottr file"
+msgstr ""
+
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "Plottr outlines contain scene cards, not prose. Scenes import empty except for overflow text and pictures; card descriptions become synopses."
+msgstr ""
+
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Podcast feed (.rss.xml)"
@@ -18121,6 +18201,7 @@ msgid "harness.progress.docRead.active"
 msgstr ""
 
 #. Interpolated values: file is the imported file name; reason is the import failure message
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The CSV/TSV table import. Interpolated values: file, column, value and row name text; count, rows, line and limit are counts; encoding is an encoding's name.
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
@@ -18143,6 +18224,7 @@ msgstr ""
 #: apps/desktop/src/import-preview/inklewriter-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
 #: apps/desktop/src/import-preview/odt-source.ts
+#: apps/desktop/src/import-preview/plottr-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 #: apps/desktop/src/import-preview/table-source.ts
 #: apps/desktop/src/import-preview/text-source.ts
@@ -20893,6 +20975,11 @@ msgstr ""
 msgid "Series and stats"
 msgstr ""
 
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "Series-level plotlines outside the chosen book were not imported."
+msgstr ""
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Server address (https://…, or http://localhost…)"
@@ -21557,6 +21644,11 @@ msgstr ""
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Some documents in this folder changed since Caotang last saved them"
+msgstr ""
+
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "Some embedded Plottr images were left out because they exceed the image limits."
 msgstr ""
 
 #. Interpolated values: error
@@ -24498,6 +24590,11 @@ msgstr ""
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #: apps/desktop/src/import-preview/kanka-source.ts
 msgid "The pictures were left out, as chosen."
+msgstr ""
+
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "The plotline {value} had no other scene to use as its payoff."
 msgstr ""
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
@@ -27469,6 +27566,11 @@ msgstr ""
 msgid "Unknown label"
 msgstr ""
 
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "Unknown Plottr fields were left out: {value}"
+msgstr ""
+
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "Unknown point of view"
@@ -27540,6 +27642,11 @@ msgstr ""
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "Unreliable narrator"
+msgstr ""
+
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "Unsorted cards"
 msgstr ""
 
 #. Interpolated values: completion, count, levels, prompt, window
@@ -28157,10 +28264,12 @@ msgstr ""
 msgid "What the import cannot keep"
 msgstr ""
 
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
 #. The Twine/Twee import. Interpolated values: knot is a passage name.
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #: apps/desktop/src/components/FdxImportDialog.tsx
 #: apps/desktop/src/import-preview/captions-source.ts
+#: apps/desktop/src/import-preview/plottr-source.ts
 #: apps/desktop/src/import-preview/twee-source.ts
 msgid "What the import does"
 msgstr ""

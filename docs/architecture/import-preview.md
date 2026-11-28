@@ -86,7 +86,7 @@ The preview's in-memory `import.preview` phase is `loading`, `failed` (reading f
 imports stage theirs. Its params: `parentId` (the manuscript, or a folder of the manuscript: folders are appended, never merged),
 `nodes` (the tree in reading order, each naming its parent folder by index; a top-level node goes under `parentId`, or under
 research with `place: 'research'`; a document may carry the import scene metadata of import-table.md §4), `vocabulary` (the terms to add), `codex` (`codex.importBatch` entries, which may name an
-imported document by index as `node`), and `pictures`.
+imported document by index as `node`, other imported documents to attach as `alsoAttach`, and pending `import:` picture refs as `visualRefs`), and `pictures`.
 
 - **A document's kind.** A document node may carry `kind` — `screenplay`, `av-script` or `comic-script`, the kinds `binder.create`
   takes for a document — and the apply makes that kind of document; absent, the document is prose. A folder takes no kind. The
@@ -98,12 +98,12 @@ imported document by index as `node`), and `pictures`.
 - **What the command checks** (whole batch, before anything is written; every failing node listed): the node shapes and limits, a
   parent that is an earlier folder, the chapter rule, the terms, the picture refs (`import:` tokens, each once) and staging ids, and
   the codex rows through `codex.importBatch`'s own validator against a projection in which a placeholder stands for each new
-  document. Scene metadata is checked there too: codex names become existing entry ids or pending ids of entries in the same batch,
+  document, after the import-only `alsoAttach` and pending-picture `visualRefs` fields are checked and held aside because the batch command itself takes only existing asset ids and one attachment. Scene metadata is checked there too: codex names become existing entry ids or pending ids of entries in the same batch,
 payoff scenes become pending document ids, a thread may not be paid off by the scene that sets it up, and the coherence projection is
 required whenever any node carries metadata. Before validation, a source's stable `pending-node:<preview id>` payoff ref is rewritten to the flattened node index after exclusions and reordering; an excluded payoff scene drops that thread. A scene reference that names a codex row the writer renamed uses the new name before validation. The store's apply checks every body's round trip again before its first write.
 - **What the apply does.** The pictures first (the only await): through the picture pipeline (dedup by hash, the GPS strip), each
   `](import:…` target becoming the picture's `../assets/` path (pictures.md D5), a codex citation in that body moved with it. Then,
-  synchronously: the terms, the folders and documents, the codex pages and entries (`origin: 'import'`), scene metadata in the
+  synchronously: the terms, the folders and documents, the codex pages and entries (`origin: 'import'`, their pending picture refs resolved to the stored asset ids and their `alsoAttach` documents added to the citation attachment), scene metadata in the
 coherence file, and location-entry attachments the metadata names.
 - **One undo.** One compensation takes back the scene metadata and entry attachments it added, the codex entries, the pages, the nodes (last first), the terms and the picture records
   (the files stay, as every picture undo leaves them). Undo returns the manifest to its bytes and every body to what it was.

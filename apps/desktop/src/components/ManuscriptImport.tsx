@@ -30,6 +30,7 @@ export function ManuscriptImportActions(): ReactNode {
   const docxFile = useRef<HTMLInputElement>(null);
   const odtFile = useRef<HTMLInputElement>(null);
   const tableFile = useRef<HTMLInputElement>(null);
+  const plottrFile = useRef<HTMLInputElement>(null);
 
   const failed = (file: File, failure: unknown): void => {
     const problem = failure instanceof Error ? failure.message : String(failure);
@@ -225,6 +226,17 @@ export function ManuscriptImportActions(): ReactNode {
     }
   };
 
+  const openPlottr = async (file: File): Promise<void> => {
+    try {
+      const { plottrPreviewSource } = await import('../import-preview/plottr-source.js');
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const opened = plottrPreviewSource(file.name, bytes);
+      openImportPreview({ source: opened.source });
+    } catch (failure) {
+      failed(file, failure);
+    }
+  };
+
   const openAo3 = async (file: File): Promise<void> => {
     try {
       const { ao3PreviewSource, ao3SizeRefusal } = await import('../import-preview/ao3-source.js');
@@ -274,6 +286,9 @@ export function ManuscriptImportActions(): ReactNode {
       </button>
       <button type="button" className="button is-quiet" onClick={() => tableFile.current?.click()}>
         <Trans>Import spreadsheet…</Trans>
+      </button>
+      <button type="button" className="button is-quiet" onClick={() => plottrFile.current?.click()}>
+        <Trans>Import Plottr…</Trans>
       </button>
       <button type="button" className="button is-quiet" onClick={() => kankaFile.current?.click()}>
         <Trans>Import Kanka…</Trans>
@@ -376,6 +391,18 @@ export function ManuscriptImportActions(): ReactNode {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = '';
           if (file !== undefined) void openAo3(file);
+        }}
+      />
+      <input
+        ref={plottrFile}
+        type="file"
+        hidden
+        accept=".pltr,application/json"
+        aria-label={t`Plottr file`}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file !== undefined) void openPlottr(file);
         }}
       />
       <input
