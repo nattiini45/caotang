@@ -112,10 +112,12 @@ describe('plottrPreviewSource', () => {
   it('leaves unsupported images out with a named loss instead of aborting the outline', async () => {
     const raw = JSON.parse(new TextDecoder().decode(fixture('simple-story.pltr'))) as Record<string, unknown>;
     raw['images'] = { 1: { id: 1, name: 'Motion', data: 'data:image/gif;base64,R0lGODdhAQABAIAAAP///////ywAAAAAAQABAAACAkQBADs=' } };
+    raw['characters'] = [{ id: 1, name: 'Ada', imageId: 1 }];
     const source = await openBytes('gif.pltr', new TextEncoder().encode(JSON.stringify(raw)));
     const plan = source.plan(settings(source), { noSplit: [], sceneAt: [], chapterAt: [] });
     expect(source.pictures?.()).toEqual([]);
     expect(plan.losses.map((loss) => loss.message).join('\n')).toContain('Unsupported embedded images were left out');
+    expect(source.codexRows?.().find((row) => row.name === 'Ada')?.visualRefs).toBeUndefined();
     raw['images'] = { 1: { id: 1, name: 'Vector', data: 'data:image/svg+xml;base64,PHN2Zy8+' } };
     const svgSource = await openBytes('svg.pltr', new TextEncoder().encode(JSON.stringify(raw)));
     expect(svgSource.pictures?.()).toEqual([]);

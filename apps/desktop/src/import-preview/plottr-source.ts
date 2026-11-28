@@ -211,7 +211,8 @@ export function plottrPreviewSource(fileName: string, bytes: Uint8Array): Plottr
         const keywords = [...new Set([...tagNames(entity.tags), ...(category === undefined ? [] : [category])])];
         const attachmentNodes = data.notes.filter((note) => note[linked].includes(entity.id)).map((note) => `note-${note.id}`);
         const description = [entity.description, entity.notes].filter((part) => part !== '').join('\n\n').slice(0, 2000);
-        return { id: `${type}-${entity.id}`, name: entity.name, type, description, keywords, ...(attachmentNodes.length === 0 ? {} : { attachmentNodes }), ...(entity.imageId === undefined || image(entity.imageId) === undefined || !picturesOn() ? {} : { visualRefs: [imageRef(entity.imageId)] }), page: { title: entity.name, body: entityBody(entity) }, preferPage: true as const };
+        const portrait = entity.imageId === undefined ? undefined : image(entity.imageId);
+        return { id: `${type}-${entity.id}`, name: entity.name, type, description, keywords, ...(attachmentNodes.length === 0 ? {} : { attachmentNodes }), ...(entity.imageId === undefined || portrait === undefined || !supported(portrait) || !picturesOn() ? {} : { visualRefs: [imageRef(entity.imageId)] }), page: { title: entity.name, body: entityBody(entity) }, preferPage: true as const };
       };
       return [
         ...read.characters.map((entity) => rowOf(entity, 'character', 'characters')),
