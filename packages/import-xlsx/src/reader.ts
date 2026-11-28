@@ -41,11 +41,21 @@ export async function readXlsx(bytes: Uint8Array, options: XlsxOptions = {}): Pr
   const workbook = await readWorkbook(archive.value);
   if (!workbook.ok) return { ok: false, error: workbook.error };
   const names = workbook.value.sheets.map((sheet) => sheet.name);
-  const chosen = options.sheet === undefined ? workbook.value.sheets[0] : workbook.value.sheets.find((sheet) => sheet.name === options.sheet);
-  if (chosen === undefined) return { ok: false, error: { kind: 'unknown-sheet', name: options.sheet ?? '' } };
-  const bytesOfSheet = await archive.value.read(chosen.path);
-  if (!bytesOfSheet.ok) return { ok: false, error: { kind: 'archive', message: bytesOfSheet.error.message } };
-  const reading = sheetGrid(bytesOfSheet.value, workbook.value, chosen.path);
+  const candidates = options.sheet === undefined ? workbook.value.sheets : workbook.value.sheets.filter((sheet) => sheet.name === options.sheet);
+  if (candidates.length === 0) return { ok: false, error: { kind: 'unknown-sheet', name: options.sheet ?? '' } };
+  let empty: SheetError | undefined;
+  let chosen = candidates[0] as (typeof candidates)[number];
+  let reading: ReturnType<typeof sheetGrid> | undefined;
+  for (const candidate of candidates) {
+    const bytesOfSheet = await archive.value.read(candidate.path);
+    if (!bytesOfSheet.ok) return { ok: false, error: { kind: 'archive', message: bytesOfSheet.error.message } };
+    reading = sheetGrid(bytesOfSheet.value, workbook.value, candidate.path);
+    chosen = candidate;
+    if (reading.ok || reading.error.kind !== 'empty' || options.sheet !== undefined) break;
+    empty ??= reading.error;
+    reading = undefined;
+  }
+  if (reading === undefined) return { ok: false, error: empty ?? { kind: 'empty' } };
   if (!reading.ok) return { ok: false, error: reading.error };
   return {
     ok: true,

@@ -82,6 +82,18 @@ export function isDateStyle(workbook: XlsxWorkbook, style: number): boolean {
   return code !== undefined && isDateFormat(code);
 }
 
+/** Whether a format shows a time but no calendar date. */
+export function isTimeOnlyFormat(code: string): boolean {
+  const bare = code.replaceAll(/"[^"]*"/g, '').replaceAll(/\[[^\]]*\]/g, '').replaceAll(/\./g, '');
+  return /[hs]/i.test(bare) && !/[yd]/i.test(bare);
+}
+
+/** Whether a cell style shows a time but no calendar date. */
+export function isTimeOnlyStyle(workbook: XlsxWorkbook, style: number): boolean {
+  const code = workbook.formats.get(style);
+  return code !== undefined && isTimeOnlyFormat(code);
+}
+
 /** Read the workbook's parts. The worksheet cells themselves are read by `sheetGrid`. */
 export async function readWorkbook(archive: ImportArchive): Promise<{ ok: true; value: XlsxWorkbook } | { ok: false; error: WorkbookError }> {
   const book = await part(archive, 'xl/workbook.xml');
@@ -94,7 +106,8 @@ export async function readWorkbook(archive: ImportArchive): Promise<{ ok: true; 
   for (const rel of rels.root === undefined ? [] : kids(rels.root, 'Relationship')) {
     const id = attr(rel, 'Id');
     const target = attr(rel, 'Target');
-    if (id !== undefined && target !== undefined) targets.set(id, targetPath(target));
+    const type = attr(rel, 'Type');
+    if (id !== undefined && target !== undefined && type?.endsWith('/worksheet') === true) targets.set(id, targetPath(target));
   }
 
   const properties = kid(book.root, 'workbookPr');
@@ -105,8 +118,9 @@ export async function readWorkbook(archive: ImportArchive): Promise<{ ok: true; 
   for (const [index, sheet] of (list === undefined ? [] : kids(list, 'sheet')).entries()) {
     const name = attr(sheet, 'name') ?? `Sheet${index + 1}`;
     const id = attr(sheet, 'id', RELATIONSHIPS);
-    const path = (id === undefined ? undefined : targets.get(id)) ?? `xl/worksheets/sheet${index + 1}.xml`;
-    if (archive.entry(path) !== undefined) sheets.push({ name, path });
+    const target = id === undefined ? undefined : targets.get(id);
+    const path = target ?? (id === undefined ? `xl/worksheets/sheet${index + 1}.xml` : undefined);
+    if (path !== undefined && archive.entry(path) !== undefined) sheets.push({ name, path });
   }
   if (sheets.length === 0) return { ok: false, error: { kind: 'no-sheets' } };
 
@@ -137,5 +151,5 @@ export async function readWorkbook(archive: ImportArchive): Promise<{ ok: true; 
 
 /** A built-in date id as a code, so `isDateFormat` sees the same thing for built-in and custom formats. */
 function builtinCode(id: number): string {
-  return id === 45 || id === 46 || id === 47 ? 'mm:ss' : 'yyyy-mm-dd';
+  return [18, 19, 20, 21, 45, 46, 47].includes(id) ? 'hh:mm:ss' : 'yyyy-mm-dd';
 }

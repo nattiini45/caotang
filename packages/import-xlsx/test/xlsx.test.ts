@@ -117,11 +117,46 @@ describe('readXlsx', () => {
     ]);
   });
 
+  it('uses the first populated sheet when the first sheet is empty', async () => {
+    const book = xlsx([
+      { name: 'Empty', rows: [] },
+      { name: 'Bible', rows: [[cell('A1', '0', 's')], [cell('A2', '1', 's')]] },
+    ], { shared: ['Name', 'Ada'] });
+    const read = await readXlsx(book);
+    expect(read.ok).toBe(true);
+    if (read.ok) {
+      expect(read.value.sheet).toBe('Bible');
+      expect(read.value.sheets).toEqual(['Empty', 'Bible']);
+      expect(read.value.rows[1]?.cells).toEqual(['Ada']);
+    }
+  });
+
+  it('omits a time-only value instead of inventing its calendar date', async () => {
+    const styles = '<cellXfs count="2"><xf numFmtId="0"/><xf numFmtId="20"/></cellXfs>';
+    const book = xlsx([{ name: 'Times', rows: [[cell('A1', '0.5', undefined, 1), cell('B1', 'plain')]] }], { styles });
+    const read = await readXlsx(book);
+    expect(read.ok).toBe(true);
+    if (read.ok) {
+      expect(read.value.rows[0]?.cells).toEqual(['', 'plain']);
+      expect(read.value.times).toBe(1);
+    }
+  });
+
   it('keeps an out-of-range date serial as its number instead of throwing', async () => {
     const book = xlsx([{ name: 'Dates', rows: [[cell('A1', '1e300', undefined, 1), cell('B1', '-1', undefined, 1), cell('C1', '2958465', undefined, 1)]] }], { styles: DATE_STYLES });
     const read = await readXlsx(book);
     expect(read.ok).toBe(true);
     if (read.ok) expect(read.value.rows[0]?.cells).toEqual(['1e+300', '-1', '9999-12-31']);
+  });
+
+  it('does not offer a chart sheet as a worksheet', async () => {
+    const book = xlsx([
+      { name: 'Chart', rows: [] },
+      { name: 'Bible', rows: [[cell('A1', '0', 's')]] },
+    ], { shared: ['Name'], types: ['chartsheet', 'worksheet'] });
+    const read = await readXlsx(book);
+    expect(read.ok).toBe(true);
+    if (read.ok) expect(read.value.sheets).toEqual(['Bible']);
   });
 
   it('reads the chosen sheet and refuses one the workbook does not hold', async () => {

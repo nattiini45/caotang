@@ -16,7 +16,7 @@ export interface SheetSpec {
   readonly rows: readonly (readonly string[])[];
 }
 
-export function xlsx(sheets: readonly SheetSpec[], extra: { shared?: string[]; styles?: string; date1904?: boolean; targets?: string[] } = {}): Uint8Array {
+export function xlsx(sheets: readonly SheetSpec[], extra: { shared?: string[]; styles?: string; date1904?: boolean; targets?: string[]; types?: string[] } = {}): Uint8Array {
   const shared = extra.shared ?? [];
   return rawZip([
     {
@@ -25,7 +25,7 @@ export function xlsx(sheets: readonly SheetSpec[], extra: { shared?: string[]; s
     },
     {
       name: 'xl/_rels/workbook.xml.rels',
-      data: enc(`<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, index) => `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="${extra.targets?.[index] ?? `worksheets/sheet${index + 1}.xml`}"/>`).join('')}</Relationships>`),
+      data: enc(`<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, index) => `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${extra.types?.[index] ?? 'worksheet'}" Target="${extra.targets?.[index] ?? `worksheets/sheet${index + 1}.xml`}"/>`).join('')}</Relationships>`),
     },
     { name: 'xl/sharedStrings.xml', data: enc(`<?xml version="1.0"?><sst ${NS}>${shared.map((text) => `<si><t>${text}</t></si>`).join('')}</sst>`) },
     { name: 'xl/styles.xml', data: enc(`<?xml version="1.0"?><styleSheet ${NS}>${extra.styles ?? '<cellXfs count="1"><xf numFmtId="0"/></cellXfs>'}</styleSheet>`) },

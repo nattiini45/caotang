@@ -7,7 +7,7 @@
 import { attr, readXml, textOf, type XmlElement } from '@caotang/import-read/xml';
 import { MAX_TABLE_COLUMNS, MAX_TABLE_ROWS, type TableCellRow } from '@caotang/import-table';
 
-import { isDateStyle, xlsxString, type XlsxWorkbook } from './workbook.js';
+import { isDateStyle, isTimeOnlyStyle, xlsxString, type XlsxWorkbook } from './workbook.js';
 
 /**
  * The safety caps one worksheet may hold. Excel's own last column is XFD (16,384): a cell reference places its cell,
@@ -130,7 +130,10 @@ export function sheetGrid(bytes: Uint8Array, workbook: XlsxWorkbook, path: strin
         const style = Number(attr(cell, 's') ?? '0');
         const serial = Number(raw);
         const newestSerial = workbook.date1904 ? 2_957_003 : 2_958_465;
-        if (isDateStyle(workbook, style) && Number.isFinite(serial) && serial >= 0 && serial < newestSerial + 1) {
+        if (isTimeOnlyStyle(workbook, style) && Number.isFinite(serial) && serial >= 0) {
+          times += 1;
+          text = '';
+        } else if (isDateStyle(workbook, style) && Number.isFinite(serial) && serial >= 0 && serial < newestSerial + 1) {
           const reading = serialDate(serial, workbook.date1904);
           if (reading.time) times += 1;
           text = reading.date;
