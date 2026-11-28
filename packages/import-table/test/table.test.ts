@@ -98,6 +98,18 @@ describe('mapCodexRows', () => {
     expect(mapped.rows[0]?.keptFields.Relation).toBe('first\n\nsecond');
   });
 
+  it('keeps a relation column named __proto__ as its own field', () => {
+    const mapped = mapCodexRows(['Name', '__proto__'], [{ line: 2, cells: ['Ada', 'hidden'] }], ['name', 'relation']);
+    expect(Object.hasOwn(mapped.rows[0]?.keptFields ?? {}, '__proto__')).toBe(true);
+    expect(mapped.rows[0]?.keptFields.__proto__).toBe('hidden');
+  });
+
+  it('names an unsafe order integer instead of sorting by a rounded value', () => {
+    const mapped = buildTimelineRows(['Title', 'Order'], [{ line: 2, cells: ['A', '9007199254740993'] }], ['title', 'order']);
+    expect(mapped.rows[0]?.order).toBeUndefined();
+    expect(mapped.losses.some((loss) => loss.code === 'bad-number' && loss.column === 'order')).toBe(true);
+  });
+
   it('names an invalid order once', () => {
     const mapped = buildTimelineRows(['Title', 'Order'], [{ line: 2, cells: ['A', 'first'] }], ['title', 'order']);
     expect(mapped.losses.filter((loss) => loss.code === 'bad-number' && loss.column === 'order')).toHaveLength(1);

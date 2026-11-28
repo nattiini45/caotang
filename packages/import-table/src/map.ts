@@ -168,7 +168,7 @@ export function mapCodexRows(columns: readonly string[], rows: readonly TableCel
       : undefined;
     const description = rowValues(row, roles, 'description')[0] ?? '';
     if ([...description].length > 2000) losses.push({ code: 'long-description', row: row.line });
-    const keptFields: Record<string, string> = {};
+    const keptFields: Record<string, string> = Object.create(null) as Record<string, string>;
     for (const role of ['relation', 'detail'] as const) {
       for (const [index, candidate] of roles.entries()) {
         if (candidate !== role) continue;
@@ -204,7 +204,11 @@ export function mapCodexRows(columns: readonly string[], rows: readonly TableCel
   return { rows: out, losses };
 }
 
-const intValue = (value: string): number | undefined => (/^[+-]?\d+$/.test(value.trim()) ? Number(value.trim()) : undefined);
+const intValue = (value: string): number | undefined => {
+  if (!/^[+-]?\d+$/.test(value.trim())) return undefined;
+  const parsed = Number(value.trim());
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
+};
 const epochDay = (year: number, month: number, day: number): number | undefined => {
   if (month < 1 || month > 12 || day < 1 || day > 31) return undefined;
   const date = new Date(Date.UTC(year, month - 1, day));
