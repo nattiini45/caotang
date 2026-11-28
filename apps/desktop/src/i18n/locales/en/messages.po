@@ -11484,6 +11484,11 @@ msgstr "General agent"
 msgid "Generation mode"
 msgstr "Generation mode"
 
+#. Plottr import strings. file and fileName are file names; value names a plotline or field; count and counts are item counts.
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "GIF images were left out because Caotang picture imports keep PNG, JPEG and WebP."
+msgstr "GIF images were left out because Caotang picture imports keep PNG, JPEG and WebP."
+
 #. Interpolated values: name
 #: apps/desktop/src/components/VocabularyEditor.tsx
 msgid "Give the {kind, select, status {status} label {label} other {status}} a name."
@@ -24591,6 +24596,11 @@ msgstr "The pictures were left out, as chosen."
 #: apps/desktop/src/import-preview/plottr-source.ts
 msgid "The plotline {value} had no other scene to use as its payoff."
 msgstr "The plotline {value} had no other scene to use as its payoff."
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "The Plottr file is larger than one import reads: at most 25 MB."
+msgstr "The Plottr file is larger than one import reads: at most 25 MB."
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx

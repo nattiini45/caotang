@@ -80,7 +80,7 @@ const number = (value: unknown): number => typeof value === 'number' && Number.i
 const ids = (value: unknown): string[] => [...new Set(list(value).map(idText).filter((id): id is string => id !== undefined))];
 
 function escapeInline(value: string): string {
-  return value.replaceAll('\\', '\\\\').replaceAll(/([*_`[\]])/g, '\\$1');
+  return value.replaceAll(/[\\*_`[\]]/g, '\\$&');
 }
 
 function inline(node: unknown): string {
@@ -151,7 +151,7 @@ function entityOf(raw: unknown): PlottrEntity | undefined {
   const id = idText(raw['id']);
   const name = text(raw['name']);
   if (id === undefined || name === undefined) return undefined;
-  const attributes: Record<string, string> = {};
+  const attributes: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const [key, value] of Object.entries(raw)) {
     if (STANDARD_ENTITY_KEYS.has(key)) continue;
     const markdown = markdownValue(value);
@@ -237,13 +237,13 @@ export function readPlottr(bytes: Uint8Array): PlottrResult {
     return [{ id, bookId, title, position: number(line['position']), series: bookId === 'series' }];
   });
 
-  const tagNames: Record<string, string> = {};
+  const tagNames: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const tag of list(raw['tags'])) if (isRecord(tag)) {
     const id = idText(tag['id']);
     const title = text(tag['title']);
     if (id !== undefined && title !== undefined) tagNames[id] = title;
   }
-  const categories: Record<string, string> = {};
+  const categories: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const group of ['characters', 'places'] as const) for (const category of list(isRecord(raw['categories']) ? raw['categories'][group] : undefined)) {
     if (!isRecord(category)) continue;
     const id = idText(category['id']);

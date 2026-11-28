@@ -228,6 +228,7 @@ export function ManuscriptImportActions(): ReactNode {
 
   const openPlottr = async (file: File): Promise<void> => {
     try {
+      if (file.size > 25_000_000) throw new Error(t`The Plottr file is larger than one import reads: at most 25 MB.`);
       const { plottrPreviewSource } = await import('../import-preview/plottr-source.js');
       const bytes = new Uint8Array(await file.arrayBuffer());
       const opened = plottrPreviewSource(file.name, bytes);

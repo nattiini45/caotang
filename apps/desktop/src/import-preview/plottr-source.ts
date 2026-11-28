@@ -40,15 +40,18 @@ function compareCards(a: PlottrCard, b: PlottrCard): number {
 export function plottrPreviewSource(fileName: string, bytes: Uint8Array): PlottrImportOpening {
   const host = new ReaderHost();
   let read: PlottrRead | null = null;
+  let currentSettings: PreviewSettings | null = null;
 
   const selectedBook = (settings: PreviewSettings): string => settings.chips[BOOK] ?? read?.books[0]?.id ?? '1';
   const tagNames = (ids: readonly string[]): string[] => ids.map((id) => read?.tags[id]).filter((name): name is string => name !== undefined);
   const charactersById = () => new Map((read?.characters ?? []).map((entity) => [entity.id, entity.name]));
   const placesById = () => new Map((read?.places ?? []).map((entity) => [entity.id, entity.name]));
   const image = (id: string | undefined) => read?.images.find((item) => item.id === id);
+  const supported = (item: { mime: string }): boolean => item.mime !== 'image/gif';
+  const picturesOn = () => currentSettings?.options[PICTURES] !== false;
   const imageMarkdown = (id: string | undefined, alt: string): string => {
     const item = image(id);
-    return item === undefined || id === undefined ? '' : `![${alt}](${imageRef(id)})`;
+    return item === undefined || id === undefined || !supported(item) || !picturesOn() ? '' : `![${alt}](${imageRef(id)})`;
   };
 
   const build = (settings: PreviewSettings): { tree: PreviewNode[]; blocks: PreviewPlan['blocks']; losses: PreviewPlan['losses']; scenes: number; words: number } => {
@@ -136,10 +139,14 @@ export function plottrPreviewSource(fileName: string, bytes: Uint8Array): Plottr
       block += 1;
     }
 
-    for (const root of roots) {
-      const first = (node: MutablePreviewNode): number => node.children?.length === 0 || node.children === undefined ? node.startBlock : first(node.children[0] as MutablePreviewNode);
-      root.startBlock = first(root);
-    }
+    const span = (node: MutablePreviewNode): void => {
+      const children = node.children ?? [];
+      if (children.length === 0) return;
+      for (const child of children) span(child as MutablePreviewNode);
+      node.startBlock = Math.min(...children.map((child) => child.startBlock));
+      node.endBlock = Math.max(...children.map((child) => child.endBlock));
+    };
+    for (const root of roots) span(root);
 
     // A Plottr line is a Caotang thread. The format stores no payoff scene, so the last scene in reading order is the fallback.
     const fallback = scenes[scenes.length - 1];
@@ -157,11 +164,13 @@ export function plottrPreviewSource(fileName: string, bytes: Uint8Array): Plottr
     for (const name of dropped) losses.push({ message: t`The plotline ${{ value: name }} had no other scene to use as its payoff.` });
     if (data.lines.some((line) => line.series && data.books.length > 1)) losses.push({ message: t`Series-level plotlines outside the chosen book were not imported.` });
     if (data.unknownKeys.length > 0) losses.push({ message: t`Unknown Plottr fields were left out: ${{ value: data.unknownKeys.join(', ') }}` });
+    if (data.images.some((item) => !supported(item))) losses.push({ message: t`GIF images were left out because Caotang picture imports keep PNG, JPEG and WebP.` });
     if (data.imageBytesDropped > 0) losses.push({ message: t`Some embedded Plottr images were left out because they exceed the image limits.` });
     return { tree: roots, blocks, losses, scenes: scenes.length, words };
   };
 
   const plan = (settings: PreviewSettings): PreviewPlan => {
+    currentSettings = settings;
     const shaped = build(settings);
     return { blocks: shaped.blocks, markers: [], tree: shaped.tree, counts: { words: shaped.words, parts: 0, chapters: shaped.tree.filter((node) => node.role === 'chapter').length, scenes: shaped.scenes, images: read?.images.length ?? 0, comments: 0, footnotes: 0 }, losses: shaped.losses, flags: [] };
   };
@@ -199,14 +208,14 @@ export function plottrPreviewSource(fileName: string, bytes: Uint8Array): Plottr
         const keywords = [...new Set([...tagNames(entity.tags), ...(category === undefined ? [] : [category])])];
         const attachmentNodes = data.notes.filter((note) => note[linked].includes(entity.id)).map((note) => `note-${note.id}`);
         const description = [entity.description, entity.notes].filter((part) => part !== '').join('\n\n').slice(0, 2000);
-        return { id: `${type}-${entity.id}`, name: entity.name, type, description, keywords, ...(attachmentNodes.length === 0 ? {} : { attachmentNodes }), ...(entity.imageId === undefined || image(entity.imageId) === undefined ? {} : { visualRefs: [imageRef(entity.imageId)] }), page: { title: entity.name, body: entityBody(entity) }, preferPage: true as const };
+        return { id: `${type}-${entity.id}`, name: entity.name, type, description, keywords, ...(attachmentNodes.length === 0 ? {} : { attachmentNodes }), ...(entity.imageId === undefined || image(entity.imageId) === undefined || !picturesOn() ? {} : { visualRefs: [imageRef(entity.imageId)] }), page: { title: entity.name, body: entityBody(entity) }, preferPage: true as const };
       };
       return [
         ...read.characters.map((entity) => rowOf(entity, 'character', 'characters')),
         ...read.places.map((entity) => rowOf(entity, 'location', 'places')),
       ];
     },
-    pictures: () => (read?.images ?? []).map((item) => ({ ref: imageRef(item.id), name: item.name, bytes: item.bytes.length, alt: item.name, data: () => item.bytes })),
+    pictures: () => (read?.images ?? []).filter(supported).map((item) => ({ ref: imageRef(item.id), name: item.name, bytes: item.bytes.length, alt: item.name, data: () => item.bytes })),
     metadata: () => ({ ...(read?.title === undefined ? {} : { title: read.title }) }),
     report: (plan) => [{ heading: t`What the import does`, label: t`Import shape`, lines: [t`${{ count: plan.counts.scenes }} scene cards become scenes with synopses and empty prose.`, t`Characters: ${{ characters: read?.characters.length ?? 0 }}; places: ${{ places: read?.places.length ?? 0 }}.`, t`Plottr notes: ${{ count: read?.notes.length ?? 0 }}.`] }],
     importLabel: (plan) => t`Import ${{ count: plan.counts.scenes }} scenes`,
