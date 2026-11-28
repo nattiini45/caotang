@@ -105,7 +105,7 @@ describe('readXlsx', () => {
   });
 
   it.each(['openpyxl-1900.xlsx', 'openpyxl-1904.xlsx'])('reads the openpyxl-produced %s date workbook as its CSV twin', async (file) => {
-    const bytes = new Uint8Array(readFileSync(resolve(__dirname, 'fixtures', file)));
+    const bytes = new Uint8Array(Buffer.from(readFileSync(resolve(__dirname, 'fixtures', `${file}.base64`), 'utf8'), 'base64'));
     const read = await readXlsx(bytes);
     expect(read.ok, read.ok ? '' : JSON.stringify(read.error)).toBe(true);
     if (!read.ok) return;
