@@ -67,6 +67,31 @@ describe('plottrPreviewSource', () => {
     expect(source.pictures?.().length).toBeGreaterThan(0);
   });
 
+  it('offers the books of a series and keeps another book\'s cards out of the chosen book', async () => {
+    const file = {
+      series: { name: 'Series' },
+      books: { allIds: [1, 2], 1: { title: 'First' }, 2: { title: 'Second' } },
+      beats: {
+        1: { index: { 10: { id: 10, title: 'First act', position: 0 } }, children: { null: [10], 10: [] } },
+        2: { index: { 20: { id: 20, title: 'Second act', position: 0 } }, children: { null: [20], 20: [] } },
+      },
+      lines: [{ id: 1, bookId: 1, title: 'First plot' }, { id: 2, bookId: 2, title: 'Second plot' }],
+      cards: [
+        { id: 1, beatId: 10, lineId: 1, title: 'First card', description: 'one' },
+        { id: 2, beatId: 20, lineId: 2, title: 'Second card', description: 'two' },
+      ],
+    };
+    const source = await openBytes('series.pltr', new TextEncoder().encode(JSON.stringify(file)));
+    expect(source.chips()[0]?.options.map((option) => option.label)).toEqual(['First', 'Second']);
+    const firstPlan = source.plan(settings(source), { noSplit: [], sceneAt: [], chapterAt: [] });
+    expect(firstPlan.tree.map((node) => node.title)).toEqual(['First act']);
+    const secondSettings = settings(source);
+    secondSettings.chips['plottr-book'] = '2';
+    const secondPlan = source.plan(secondSettings, { noSplit: [], sceneAt: [], chapterAt: [] });
+    expect(secondPlan.tree.map((node) => node.title)).toEqual(['Second act']);
+    expect(secondPlan.tree[0]?.children?.map((node) => node.title)).toEqual(['Second card']);
+  });
+
   it('leaves a GIF out with a named loss instead of aborting the outline', async () => {
     const raw = JSON.parse(new TextDecoder().decode(fixture('simple-story.pltr'))) as Record<string, unknown>;
     raw['images'] = { 1: { id: 1, name: 'Motion', data: 'data:image/gif;base64,R0lGODdhAQABAIAAAP///////ywAAAAAAQABAAACAkQBADs=' } };

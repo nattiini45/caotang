@@ -60,7 +60,10 @@ export function plottrPreviewSource(fileName: string, bytes: Uint8Array): Plottr
     const bookId = selectedBook(settings);
     const beats = read.beats.filter((beat) => beat.bookId === bookId).sort((a, b) => a.position - b.position);
     const beatIds = new Set(beats.map((beat) => beat.id));
-    const cards = read.cards.filter((card) => card.bookId === undefined || card.bookId === bookId || card.bookId === null);
+    const beatBooks = new Map(read.beats.map((beat) => [beat.id, beat.bookId]));
+    const lineBooks = new Map(read.lines.map((line) => [line.id, line.series ? undefined : line.bookId]));
+    const cardBook = (card: PlottrCard): string | undefined => card.bookId ?? (card.beatId === undefined ? undefined : beatBooks.get(card.beatId)) ?? (card.lineId === undefined ? undefined : lineBooks.get(card.lineId));
+    const cards = read.cards.filter((card) => cardBook(card) === undefined || cardBook(card) === bookId);
     const losses: PreviewLoss[] = [];
     const blocks: PreviewBlock[] = [];
     const scenes: MutablePreviewNode[] = [];
