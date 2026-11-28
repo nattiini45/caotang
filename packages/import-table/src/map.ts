@@ -107,6 +107,17 @@ export function splitCellList(value: string): string[] {
   return [...new Set(value.split(/[;,\n]/).map((item) => item.trim()).filter((item) => item !== ''))];
 }
 
+/** Entity names are unique case-insensitively in the codex and coherence metadata; keep the first spelling. */
+function entityNames(values: readonly string[], except: readonly string[] = []): string[] {
+  const seen = new Set(except.map((value) => value.trim().toLowerCase()));
+  return values.filter((value) => {
+    const key = value.trim().toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 const cell = (row: TableCellRow, index: number): string => {
   const value = (row.cells[index] ?? '').trim();
   return /^'[=+\-@\t\r]/.test(value) ? value.slice(1) : value;
@@ -124,6 +135,12 @@ export const TYPE_WORDS: Readonly<Record<string, string>> = {
   other: 'other',
 };
 
+/** The built-in type for a source type word, or undefined when the synonym table does not define one. */
+export function typeWord(value: string): string | undefined {
+  const key = normal(value);
+  return Object.hasOwn(TYPE_WORDS, key) ? TYPE_WORDS[key] : undefined;
+}
+
 /** Map rows in codex mode. A row without a name is named as a loss and skipped. */
 export function mapCodexRows(columns: readonly string[], rows: readonly TableCellRow[], roles: readonly ColumnRole[]): { rows: MappedCodexRow[]; losses: MappingLoss[] } {
   const out: MappedCodexRow[] = [];
@@ -135,7 +152,7 @@ export function mapCodexRows(columns: readonly string[], rows: readonly TableCel
       continue;
     }
     const rawType = rowValues(row, roles, 'type')[0] ?? '';
-    const mappedType = TYPE_WORDS[normal(rawType)];
+    const mappedType = typeWord(rawType);
     if (rawType !== '' && mappedType === undefined) losses.push({ code: 'unknown-type', row: row.line, column: 'type', value: rawType });
     const policyText = normal(rowValues(row, roles, 'include-policy')[0] ?? '');
     const policy = policyText === 'always' || policyText === 'auto' || policyText === 'automatic' ? 'always'
@@ -156,7 +173,7 @@ export function mapCodexRows(columns: readonly string[], rows: readonly TableCel
       }
     }
     if ((rowValues(row, roles, 'image-file')[0] ?? '') !== '') losses.push({ code: 'image-file', row: row.line, column: 'image-file', value: rowValues(row, roles, 'image-file')[0] });
-    const aliases = splitCellList(rowValues(row, roles, 'aliases').join(';'));
+    const aliases = entityNames(splitCellList(rowValues(row, roles, 'aliases').join(';')), [name]);
     if (aliases.length > TABLE_CODEX_ALIASES_MAX) {
       losses.push({ code: 'aliases-truncated', row: row.line, column: 'aliases', value: aliases.slice(TABLE_CODEX_ALIASES_MAX).join('; '), count: aliases.length - TABLE_CODEX_ALIASES_MAX });
     }
@@ -234,7 +251,7 @@ export function buildTimelineRows(_columns: readonly string[], rows: readonly Ta
       const text = rowValues(row, roles, role)[0];
       if (text === undefined || text === '') return { absolute: false };
       const parsed = parseTimelineDay(text, format);
-      if (parsed === undefined) {
+      if (parsed === undefined || parsed < -10_000_000 || parsed > 10_000_000) {
         losses.push({ code: 'bad-date', row: row.line, column: role, value: text });
         return { absolute: false };
       }
@@ -272,9 +289,9 @@ export function buildTimelineRows(_columns: readonly string[], rows: readonly Ta
       ...(rowValues(row, roles, 'part')[0] === undefined ? {} : { part: rowValues(row, roles, 'part')[0] }),
       ...(rowValues(row, roles, 'folder')[0] === undefined ? {} : { folder: rowValues(row, roles, 'folder')[0] }),
       ...(rowValues(row, roles, 'pov')[0] === undefined ? {} : { pov: rowValues(row, roles, 'pov')[0] }),
-      participants: splitCellList(rowValues(row, roles, 'participants').join(';')),
-      locations: splitCellList(rowValues(row, roles, 'location').join(';')),
-      arcs: splitCellList(rowValues(row, roles, 'arc').join(';')),
+      participants: entityNames(splitCellList(rowValues(row, roles, 'participants').join(';'))),
+      locations: entityNames(splitCellList(rowValues(row, roles, 'location').join(';'))),
+      arcs: entityNames(splitCellList(rowValues(row, roles, 'arc').join(';'))),
       summary: rowValues(row, roles, 'summary')[0] ?? '',
       body: rowValues(row, roles, 'body')[0] ?? '',
     });

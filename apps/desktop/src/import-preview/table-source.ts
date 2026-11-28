@@ -12,7 +12,7 @@ import {
   guessColumnRoles,
   mapCodexRows,
   tableColumns,
-  TYPE_WORDS,
+  typeWord,
   type ColumnRole,
   type MappedTimelineRow,
   type TableDelimiter,
@@ -285,8 +285,7 @@ export function tablePreviewSource(fileName: string, bytes: Uint8Array): TableIm
         { id: DAY_ZERO, label: t`Day zero`, value: settings.chips[DAY_ZERO] ?? 'earliest', options: [{ value: 'earliest', label: t`The earliest dated row` }, ...anchored.slice(0, 30).map((row) => ({ value: `row:${row.row}`, label: t`Row ${{ line: row.row }} — ${{ row: row.title }}` }))] },
       ] : []),
       ...(mode === 'codex' ? typeValuesOf(settings).map((value, index) => {
-        const key = value.trim().toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
-        return { id: typeId(index), label: t`Type “${{ value }}” becomes`, value: settings.chips[typeId(index)] ?? storedType(value) ?? TYPE_WORDS[key] ?? 'other', options: typeOptions() };
+        return { id: typeId(index), label: t`Type “${{ value }}” becomes`, value: settings.chips[typeId(index)] ?? storedType(value) ?? typeWord(value) ?? 'other', options: typeOptions() };
       }) : []),
     ];
   };
@@ -434,7 +433,7 @@ export function tablePreviewSource(fileName: string, bytes: Uint8Array): TableIm
     if (shape === undefined) return { blocks: [], markers: [], tree: [], counts: empty, losses: [], flags: [] };
     saveRoles(shape.mode, shape.columns, shape.roles);
     if (shape.mode === 'codex') {
-      for (const [index, value] of typeValuesOf(settings).entries()) saveType(value, settings.chips[typeId(index)] ?? storedType(value) ?? TYPE_WORDS[value.trim().toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ')] ?? 'other');
+      for (const [index, value] of typeValuesOf(settings).entries()) saveType(value, settings.chips[typeId(index)] ?? storedType(value) ?? typeWord(value) ?? 'other');
     }
     const tableLosses = parseLosses(shape.cached.parse);
     if (shape.mode === 'codex') {

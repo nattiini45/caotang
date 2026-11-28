@@ -65,6 +65,18 @@ describe('mapCodexRows', () => {
     expect(mapped.losses.some((loss) => loss.code === 'unknown-type')).toBe(true);
   });
 
+  it('treats inherited object property names as unknown vendor types', () => {
+    const mapped = mapCodexRows(['Name', 'Type'], [{ line: 2, cells: ['Ada', 'constructor'] }], ['name', 'type']);
+    expect(mapped.rows[0]?.type).toBe('other');
+    expect(mapped.rows[0]?.vendorType).toBe('constructor');
+    expect(mapped.losses).toEqual([expect.objectContaining({ code: 'unknown-type', value: 'constructor' })]);
+  });
+
+  it('keeps a name or alias once case-insensitively for one entry', () => {
+    const mapped = mapCodexRows(['Name', 'Aliases'], [{ line: 2, cells: ['Ada', 'ada;A.;a.;ADA'] }], ['name', 'aliases']);
+    expect(mapped.rows[0]?.aliases).toEqual(['A.']);
+  });
+
   it('keeps only the first ten aliases and names the omitted ones', () => {
     const aliases = Array.from({ length: 12 }, (_, index) => `A${index}`).join(';');
     const mapped = mapCodexRows(['Name', 'Aliases'], [{ line: 2, cells: ['Ada', aliases] }], ['name', 'aliases']);
@@ -112,6 +124,17 @@ describe('buildTimelineRows', () => {
     const mapped = buildTimelineRows(['Title', 'Start'], [{ line: 2, cells: ['A', '02/03/2024'] }], ['title', 'start'], { dateFormat: 'iso' });
     expect(mapped.rows[0]?.start).toBeUndefined();
     expect(mapped.losses).toEqual([expect.objectContaining({ code: 'bad-date', row: 2 })]);
+  });
+
+  it('keeps one case-insensitive spelling of a plotline handle', () => {
+    const mapped = buildTimelineRows(['Title', 'Arc'], [{ line: 2, cells: ['A', 'Quest;QUEST;Home'] }], ['title', 'arc']);
+    expect(mapped.rows[0]?.arcs).toEqual(['Quest', 'Home']);
+  });
+
+  it('names a day outside the coherence range as a bad date before commit', () => {
+    const mapped = buildTimelineRows(['Title', 'Start'], [{ line: 2, cells: ['A', '10000001'] }], ['title', 'start']);
+    expect(mapped.rows[0]?.start).toBeUndefined();
+    expect(mapped.losses).toEqual([expect.objectContaining({ code: 'bad-date', row: 2, value: '10000001' })]);
   });
 });
 
