@@ -244,7 +244,7 @@ export const BUDGET = {
   // (1,127.8 kB, because the hosted chunks share the store either way), and the hosted open importing the store dynamically
   // (1,161.8 kB: a dynamic import of a barrel pulls its whole re-export graph into shared chunks). The notice's English text is in the
   // entry catalogue as every screen's is, 0.7 kB of that chunk.
-  // CSV/TSV import (#288) measured 1,103,083 bytes gzip after the shared startup modules were layered; the reader and mapping UI stay lazy.
+  // CSV/TSV import (#288) measured 1,103,062 bytes gzip after the shared startup modules were layered; the reader and mapping UI stay lazy.
   initialGzip: 1_126_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
