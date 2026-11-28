@@ -88,6 +88,21 @@ describe('mapCodexRows', () => {
     expect(mapped.rows[0]?.body).toBe('    code');
   });
 
+  it('keeps meaningful whitespace in relation and detail text', () => {
+    const mapped = mapCodexRows(['Name', 'Relation', 'Detail'], [{ line: 2, cells: ['Ada', '  mentor  ', ' detail '] }], ['name', 'relation', 'detail']);
+    expect(mapped.rows[0]?.keptFields).toEqual({ Relation: '  mentor  ', Detail: ' detail ' });
+  });
+
+  it('keeps every duplicate relation or detail cell', () => {
+    const mapped = mapCodexRows(['Name', 'Relation', 'Relation'], [{ line: 2, cells: ['Ada', 'first', 'second'] }], ['name', 'relation', 'relation']);
+    expect(mapped.rows[0]?.keptFields.Relation).toBe('first\n\nsecond');
+  });
+
+  it('names an invalid order once', () => {
+    const mapped = buildTimelineRows(['Title', 'Order'], [{ line: 2, cells: ['A', 'first'] }], ['title', 'order']);
+    expect(mapped.losses.filter((loss) => loss.code === 'bad-number' && loss.column === 'order')).toHaveLength(1);
+  });
+
   it('names an unsafe duration integer instead of rounding it', () => {
     const mapped = buildTimelineRows(['Title', 'Duration'], [{ line: 2, cells: ['A', '9007199254740993 days'] }], ['title', 'duration']);
     expect(mapped.rows[0]?.duration).toBeUndefined();

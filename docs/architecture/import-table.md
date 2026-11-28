@@ -31,7 +31,7 @@ Roles are Name, Aliases, Type, Description, Long text, Tags, Include policy, Ima
 - **Long text**, the description, image-file text and preserved detail/relation text are written to the research page. The row has `preferPage`, so the page exists even when the name occurs in an imported document.
 - **Include policy** accepts the codex values `always`, `detected`, `manual` and `never`, with ordinary private/secret/GM-only words read as `manual`; an unrecognised value keeps the default.
 - **Image file** is preserved as text in the research page and reported as a loss: the table itself cannot supply the image's bytes.
-- **Relation to…** and **Detail field** are kept as text on the research page and reported as kept for #223/#221, not converted to typed relations or detail fields.
+- **Relation to…** and **Detail field** are kept as text on the research page and reported as kept for #223/#221, not converted to typed relations or detail fields. Repeated columns with the same header keep every cell, joined as separate paragraphs.
 - **Scope** `world` makes the row lore and the index document is titled **World history**, matching issue #288's world-history decision; other scopes do not change the type.
 
 The index document is placed in Research, never in the manuscript. Codex collision and rename handling are the shared preview's batch rules: an existing name or alias starts skipped and nothing merges into it.

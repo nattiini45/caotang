@@ -171,10 +171,12 @@ export function mapCodexRows(columns: readonly string[], rows: readonly TableCel
     const keptFields: Record<string, string> = {};
     for (const role of ['relation', 'detail'] as const) {
       for (const [index, candidate] of roles.entries()) {
-        const value = cell(row, index);
-        if (candidate === role && value !== '') {
-          keptFields[columns[index] ?? role] = value;
-          losses.push({ code: 'kept-for-later', row: row.line, column: columns[index] ?? role });
+        if (candidate !== role) continue;
+        const value = cell(row, index, true);
+        if (value !== '') {
+          const key = columns[index] ?? role;
+          keptFields[key] = keptFields[key] === undefined ? value : `${keptFields[key]}\n\n${value}`;
+          losses.push({ code: 'kept-for-later', row: row.line, column: key });
         }
       }
     }
