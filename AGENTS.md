@@ -85,6 +85,7 @@ packages/import-read/   the readers every import shares: a namespace-aware XML r
 packages/i18n/          interface locale, formatter locale, cached Intl formatters, collation, bidi isolation, MessageRef (no React, no Lingui)
 packages/import-core/   the import block model and the pure chapter and scene splitter every document reader shares (no DOM, no dependencies)
 packages/import-captions/ the SRT and WebVTT reader: timed text → cues → one AV script episode with declared durations and its losses (no DOM, no third-party dependencies)
+packages/import-table/    the RFC 4180 CSV/TSV reader and its codex/timeline column mapping (no DOM, no third-party dependencies)
 packages/mcp-client/     MCP client (Streamable HTTP)
 packages/mcp-server/     Caotang as an MCP server (@caotang/mcp-server)
 packages/pdf-fonts/      what both PDFs share for their fallback fonts (byte checks, fontkit, CID writer, emoji)

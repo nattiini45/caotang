@@ -95,9 +95,10 @@ const PURE_PACKAGE_SOURCE = /[\\/]packages[\\/](harness|gateway|mcp-client|conte
 const EDITOR_PACKAGES = new Set(['linkifyjs', 'orderedmap', 'rope-sequence']);
 const MARKDOWN_PACKAGES = new Set([
   'unified', 'trough', 'bail', 'is-plain-obj', 'ccount', 'longest-streak', 'markdown-table', 'zwitch', 'devlop',
-  'decode-named-character-reference',
+  'decode-named-character-reference', 'parse5', 'entities', 'property-information', 'hastscript', 'web-namespaces',
+  'trim-lines', 'fastest-levenshtein',
 ]);
-const MARKDOWN_PREFIXES = ['micromark', 'mdast-util-', 'remark-', 'unist-', 'vfile', 'character-entities'];
+const MARKDOWN_PREFIXES = ['micromark', 'mdast-util-', 'remark-', 'unist-', 'vfile', 'character-entities', 'hast-util-', 'comma-separated-tokens', 'space-separated-tokens'];
 
 /**
  * The vendor chunk a module goes in: React, the editor (tiptap and ProseMirror), the Markdown pipeline, or the project store. Everything
@@ -115,8 +116,30 @@ function vendorChunkOf(id: string): string | null {
   const name = packageOf(id);
   if (name === undefined) return null;
   if (name === 'react' || name === 'react-dom' || name === 'scheduler') return 'vendor-react';
+  if (name === '@lingui/core' || name === '@lingui/react' || name === 'use-sync-external-store') return 'vendor-react';
   if (name.startsWith('@tiptap/') || name.startsWith('prosemirror-') || EDITOR_PACKAGES.has(name)) return 'vendor-editor';
   if (MARKDOWN_PACKAGES.has(name) || MARKDOWN_PREFIXES.some((prefix) => name.startsWith(prefix))) return 'vendor-markdown';
+  return null;
+}
+
+
+/** The worker entries stay out of the application startup layer: a module Worker must never execute the shell to reach one shared helper. */
+function workerEntryChunkOf(id: string): string | null {
+  const path = id.replaceAll('\\', '/');
+  if (path.endsWith('/apps/desktop/src/app/text-search.worker.ts')) return 'text-search-worker-entry';
+  if (path.endsWith('/apps/desktop/src/import-preview/reader.worker.ts')) return 'reader-worker-entry';
+  if (path.endsWith('/apps/desktop/src/workers/harness-worker.ts')) return 'harness-worker-entry';
+  return null;
+}
+/** The DOM-free roots a worker enters through. Their dependency closures can be shared with the page without executing application code. */
+function workerSharedChunkOf(id: string): string | null {
+  const path = id.replaceAll('\\', '/');
+  if (path.endsWith('/packages/harness/src/tools/text-search.ts')) return 'worker-text-search';
+  if (path.endsWith('/packages/harness/src/worker.ts') || path.endsWith('/packages/harness/src/agent/context.ts') || path.endsWith('/packages/harness/src/scan-worker.ts')) return 'worker-harness';
+  // `xml.ts` keeps the shared XML reader's own lazy chunk (#268); the archive and text readers are the pieces the Worker shares.
+  if (/[\\/]packages[\\/]import-core[\\/]src[\\/]/.test(path) || /[\\/]packages[\\/]import-read[\\/]src[\\/](?:index|text|zip)\.ts$/.test(path)) return 'worker-import';
+  if (path.endsWith('/apps/desktop/src/import-preview/reader-protocol.ts')) return 'worker-reader-protocol';
+  if (path.endsWith('/apps/desktop/src/import-preview/reader-session.ts')) return 'worker-reader-session';
   return null;
 }
 
@@ -172,8 +195,8 @@ export default defineConfig(({ command, mode }) => ({
     // first-load budget.
     modulePreload: {
       resolveDependencies: (filename, deps, { hostId }) => {
-        // The reader runs in a Worker, where Vite's DOM-based module preloader cannot insert links.
-        if (/(^|\/)reader\.worker-[\w-]+\.js$/.test(hostId)) return [];
+        // Workers cannot use Vite's DOM-based module preloader: it inserts link elements through document.
+        if (/(^|\/)[\w.-]*worker[\w.-]*\.js$/.test(hostId)) return [];
         return /(^|\/)narrow-panels-[\w-]+\.js$/.test(filename) && /(^|\/)modern-shell-[\w-]+\.js$/.test(hostId)
           ? deps.filter((dep) => dep === filename || /(^|\/)narrow-panels-[\w-]+\.css$/.test(dep))
           : deps;
@@ -188,7 +211,38 @@ export default defineConfig(({ command, mode }) => ({
       output: {
         // Vendor chunks: a release that touches only app code leaves these hashes alone, so the browser keeps them cached, and the size
         // table names what the bytes are. They are not how the first download gets smaller (the dynamic imports are).
-        codeSplitting: { groups: [{ name: vendorChunkOf, debugName: 'vendor' }] },
+        // Small startup modules shared with lazy chunks otherwise become dozens of files; the first-load gate sums a gzip stream per
+        // file, so that fragmentation costs tens of kilobytes without adding code. Keep them in two layered startup chunks: packages
+        // do not import the app, so package-shared cannot depend back on app-shared. `$initial` keeps lazy-only readers and dialogs out,
+        // the module cap keeps the capture to small shared modules, and recursive dependencies keep a captured module with what it needs.
+        // Worker entries and the DOM-free roots they enter through stay ahead of those layers: sharing code with the page must not
+        // make a Worker evaluate the application shell, the editor pipeline or the DOM preloader.
+        codeSplitting: {
+          groups: [
+            { name: vendorChunkOf, debugName: 'vendor', priority: 20 },
+            { name: workerEntryChunkOf, debugName: 'worker-entries', priority: 30, includeDependenciesRecursively: false },
+            {
+              name: workerSharedChunkOf,
+              debugName: 'worker-shared',
+              priority: 15,
+              includeDependenciesRecursively: true,
+            },
+            {
+              name: 'package-shared',
+              tags: ['$initial'],
+              test: /[\\/]packages[\\/][^\\/]+[\\/]src[\\/]/,
+              maxModuleSize: 5_000,
+              includeDependenciesRecursively: true,
+            },
+            {
+              name: 'app-shared',
+              tags: ['$initial'],
+              test: /[\\/]apps[\\/]desktop[\\/]src[\\/]/,
+              maxModuleSize: 5_000,
+              includeDependenciesRecursively: true,
+            },
+          ],
+        },
       },
     },
   },

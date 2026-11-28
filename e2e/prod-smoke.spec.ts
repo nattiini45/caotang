@@ -374,13 +374,14 @@ test('the built app writes a scene, sets a cover, and compiles Word and EPUB wit
   expect(await violations(page)).toEqual([]);
 });
 
-test('the first load leaves out Settings and the MCP SDK, and a project with no MCP server never fetches the SDK', async ({ page }) => {
+test('the first load leaves out Settings, the MCP SDK and the table import, and a project with no MCP server never fetches the SDK', async ({ page }) => {
   const problems = await watchForProblems(page);
   const chunks = watchChunks(page);
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'No projects here yet' })).toBeVisible();
   expect(chunks()).not.toContain('Settings');
   expect(chunks()).not.toContain('wire');
+  expect(chunks()).not.toContain('table-source');
 
   // Settings loads when it is opened; the MCP section is in it, and showing it contacts nothing and loads no SDK.
   await page.getByRole('button', { name: 'Settings', exact: true }).click();

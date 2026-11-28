@@ -32,6 +32,7 @@ import {
   type ProjectAssetPort,
   type ProjectState,
 } from '../src/index.js';
+import { emptyCoherenceState } from '../src/coherence-state.js';
 import { png } from '../../pictures/test/fixtures.js';
 
 const NOW = new Date('2026-11-01T10:00:00.000Z');
@@ -231,6 +232,38 @@ describe('binder.importTree — the apply', () => {
     expect(snapshotOf(h.state)).toEqual(before);
     expect(h.state.manifest.assets).toBeUndefined();
     expect(h.state.manifest.codex ?? []).toEqual([]);
+  });
+
+  it('writes imported scene declarations with codex names and pending payoff scenes resolved, as one undo group', async () => {
+    const h = harness();
+    h.state.coherence = emptyCoherenceState();
+    h.state.manifest.codex = [
+      { id: 'c_ADA0000001', name: 'Ada', aliases: [], type: 'character', description: '', includePolicy: 'detected', caseSensitive: false, exclude: [], attachments: [], keywords: [], origin: 'manual', sources: [] },
+      { id: 'c_BOB0000001', name: 'Bob', aliases: [], type: 'character', description: '', includePolicy: 'detected', caseSensitive: false, exclude: [], attachments: [], keywords: [], origin: 'manual', sources: [] },
+    ];
+    const result = await executeAsync(
+      command({
+        nodes: [
+          { type: 'folder', title: 'Chapter 1' },
+          { type: 'document', title: 'Opening', parent: 0, body: 'Opening.', sceneMeta: { pov: 'Ada', dayOffset: -14, durationDays: 2, expectedPresent: ['Ada', 'Bob'], storyPart: 'prologue', threads: [{ id: 'Quest', payoff: 'pending:import:2' }] } },
+          { type: 'document', title: 'Aftermath', parent: 0, body: 'Aftermath.', sceneMeta: { dayOffset: -12, mainStory: true } },
+        ],
+      }),
+      h.bus,
+      h.registry,
+    );
+    expect(result.ok, result.ok ? '' : result.error.message).toBe(true);
+    if (!result.ok) return;
+    const value = result.value.result as { nodeIds: string[] };
+    const first = value.nodeIds[1] ?? '';
+    const second = value.nodeIds[2] ?? '';
+    expect(h.state.coherence.sceneMeta[first]).toEqual({ pov: 'c_ADA0000001', dayOffset: -14, durationDays: 2, expectedPresent: ['c_ADA0000001', 'c_BOB0000001'], storyPart: 'prologue', threads: [{ id: 'Quest', payoff: second }] });
+    expect(h.state.coherence.sceneMeta[second]).toEqual({ dayOffset: -12, mainStory: true });
+    expect(h.undo.groups()).toHaveLength(1);
+
+    undoLast(h);
+    expect(h.state.coherence.sceneMeta[first]).toBeUndefined();
+    expect(h.state.coherence.sceneMeta[second]).toBeUndefined();
   });
 
   it('writes nothing when the batch is refused: a codex row that collides refuses the whole import', async () => {

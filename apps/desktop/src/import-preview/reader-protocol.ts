@@ -12,6 +12,7 @@
 
 import type { ParagraphMode, PlainTextRead } from '@caotang/import-read/text';
 import type { CaptionsResult } from '@caotang/import-captions';
+import type { TableDelimiter, TableParseResult } from '@caotang/import-table';
 import type { InklewriterResult } from '@caotang/import-inklewriter';
 import type { HighlandResult } from '@caotang/import-highland';
 import type { RtfImport } from '@caotang/import-rtf';
@@ -27,6 +28,7 @@ import type { DecodableEncoding } from '@caotang/store/encoding';
 export type ReaderOpen =
   | { readonly kind: 'open'; readonly reader: 'text'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'captions'; readonly bytes: Uint8Array }
+  | { readonly kind: 'open'; readonly reader: 'table'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'rtf'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'rtfd'; readonly files: readonly { readonly path: string; readonly size: number; readonly bytes: Uint8Array }[] }
   | { readonly kind: 'open'; readonly reader: 'rtfd-zip'; readonly bytes: Uint8Array }
@@ -44,6 +46,7 @@ export type ReaderOpen =
 export type ReaderRead =
   | { readonly kind: 'read'; readonly reader: 'text'; readonly encoding?: DecodableEncoding; readonly paragraphs?: ParagraphMode | 'auto'; readonly fileName?: string }
   | { readonly kind: 'read'; readonly reader: 'captions'; readonly encoding?: DecodableEncoding }
+  | { readonly kind: 'read'; readonly reader: 'table'; readonly encoding?: DecodableEncoding; readonly delimiter?: TableDelimiter }
   | { readonly kind: 'read'; readonly reader: 'rtf' | 'rtfd'; readonly underlineAs?: 'italic' | 'none'; readonly assetPrefix?: string }
   | { readonly kind: 'read'; readonly reader: 'inklewriter'; readonly fileName?: string }
   | { readonly kind: 'read'; readonly reader: 'html' }
@@ -63,6 +66,7 @@ export type ReaderResult =
   | { readonly kind: 'opened' }
   | { readonly kind: 'text'; readonly result: PlainTextRead }
   | { readonly kind: 'captions'; readonly result: CaptionsReadResult }
+  | { readonly kind: 'table'; readonly result: TableReadResult }
   | { readonly kind: 'rtf'; readonly result: SerializableRtfResult }
   | { readonly kind: 'inklewriter'; readonly result: InklewriterResult }
   | { readonly kind: 'html'; readonly result: HtmlResult }
@@ -80,6 +84,11 @@ export type ReaderResult =
  */
 export type CaptionsReadResult =
   | { readonly status: 'read'; readonly encoding: DecodableEncoding; readonly guessed: boolean; readonly candidates: Extract<PlainTextRead, { status: 'read' }>['candidates']; readonly parse: CaptionsResult }
+  | { readonly status: 'undecoded'; readonly decode: Exclude<PlainTextRead, { status: 'read' }> };
+
+/** A table read: the decode's answer plus the RFC 4180 parse of its text. The mapping stays on the main thread. */
+export type TableReadResult =
+  | { readonly status: 'read'; readonly encoding: DecodableEncoding; readonly guessed: boolean; readonly candidates: Extract<PlainTextRead, { status: 'read' }>['candidates']; readonly parse: TableParseResult }
   | { readonly status: 'undecoded'; readonly decode: Exclude<PlainTextRead, { status: 'read' }> };
 
 /** The envelope the Worker posts back: the request's id, and its result or a failure message. */

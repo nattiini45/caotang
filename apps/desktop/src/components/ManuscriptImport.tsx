@@ -29,6 +29,7 @@ export function ManuscriptImportActions(): ReactNode {
   const kankaFile = useRef<HTMLInputElement>(null);
   const docxFile = useRef<HTMLInputElement>(null);
   const odtFile = useRef<HTMLInputElement>(null);
+  const tableFile = useRef<HTMLInputElement>(null);
 
   const failed = (file: File, failure: unknown): void => {
     const problem = failure instanceof Error ? failure.message : String(failure);
@@ -203,6 +204,26 @@ export function ManuscriptImportActions(): ReactNode {
     }
   };
 
+  const openTable = async (file: File): Promise<void> => {
+    try {
+      const { tablePreviewSource, tableSizeRefusal } = await import('../import-preview/table-source.js');
+      const refusal = tableSizeRefusal(file.name, file.size);
+      if (refusal !== undefined) {
+        report({ text: refusal, tone: 'error' });
+        return;
+      }
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const opened = tablePreviewSource(file.name, bytes);
+      if (!opened.ok) {
+        report({ text: opened.message, tone: 'error' });
+        return;
+      }
+      openImportPreview({ source: opened.source });
+    } catch (failure) {
+      failed(file, failure);
+    }
+  };
+
   const openAo3 = async (file: File): Promise<void> => {
     try {
       const { ao3PreviewSource, ao3SizeRefusal } = await import('../import-preview/ao3-source.js');
@@ -250,6 +271,9 @@ export function ManuscriptImportActions(): ReactNode {
       <button type="button" className="button is-quiet" onClick={() => odtFile.current?.click()}>
         <Trans>Import OpenDocument…</Trans>
       </button>
+      <button type="button" className="button is-quiet" onClick={() => tableFile.current?.click()}>
+        <Trans>Import CSV/TSV…</Trans>
+      </button>
       <button type="button" className="button is-quiet" onClick={() => kankaFile.current?.click()}>
         <Trans>Import Kanka…</Trans>
       </button>
@@ -287,6 +311,18 @@ export function ManuscriptImportActions(): ReactNode {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = '';
           if (file !== undefined) void openCaptions(file);
+        }}
+      />
+      <input
+        ref={tableFile}
+        type="file"
+        hidden
+        accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain"
+        aria-label={t`CSV or TSV file`}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file !== undefined) void openTable(file);
         }}
       />
       <input

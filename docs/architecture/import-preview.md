@@ -35,10 +35,11 @@ proposed tree?* A source gives:
 | `options()` | Reader toggles: tracked changes, comments → notes, underline → italics, images, snapshots, codex auto-detect (decisions 5 and 6, on by default). An option with `network` (host, count, size) is a network step (decision 10): it starts **off** whatever the source says, and its label names the host, the count and the size. |
 | `plan(settings, overrides)` | The proposed tree (`PreviewNode`: part, chapter, scene, text, front, back), the text pane's blocks, the ✂ markers with the reason for each, the counts, the losses (`LossWarning`s) and the sanity flags, a flag with a one-click fix as overrides. Pure and fast: it is run again on every chip change. |
 | `fields()`, `codexRows()`, `pictures()`, `metadata()` | What there is to map: front-matter keys or columns, codex rows (name, type, the passage that names it, a page of its own text, and the source's own `keywords`, `aliases` and `includePolicy`), pictures (staged bytes behind an `import:` ref the bodies use). A row with `preferPage` always gets its page, even when its name also appears in the tree (a Kanka entity, whose name is in the world-history index); without it a name found in the tree is cited there and no page is made. |
+| `grid(settings)` | Optional tabular rows with a dropdown-bearing header per column (the CSV/TSV import, import-table.md §3): the first rows as text plus each column's chip id, current value and choices. The dialog renders it before the text panes. |
 | `scanExtra()` | Text the reader kept out of the tree (RTF hidden text, deleted revisions, field codes, link targets) that the injection scan reads too; its hits are listed by what they are, with no node. |
 | `report(plan)`, `importLabel(plan)`, `commit`, `readOnly` | For a source whose import is not a binder tree (the Twee import: one dialogue container, written with `dialogue.importInk`). |
 
-The sources built on this contract: the splitter source (`splitter-source.ts`) with the plain-text and RTF/RTFD readers on it (#283, #274, #390), the Twee source (`twee-source.ts`, a custom commit), and the captions source (`captions-source.ts`, #287), which proposes **one AV script episode in a show folder** instead of chapters and scenes and carries the node kinds `binder.create` takes ([import-captions.md](import-captions.md) §5).
+The sources built on this contract: the splitter source (`splitter-source.ts`) with the plain-text and RTF/RTFD readers on it (#283, #274, #390), the Twee source (`twee-source.ts`, a custom commit), and the captions source (`captions-source.ts`, #287), which proposes **one AV script episode in a show folder** instead of chapters and scenes and carries the node kinds `binder.create` takes ([import-captions.md](import-captions.md) §5), and the table source (`table-source.ts`, #288), which proposes codex rows or timeline scenes from CSV/TSV ([import-table.md](import-table.md)).
 
 ## 3. Rules first, manual edits second
 
@@ -64,7 +65,8 @@ the old rule. Import waits while it asks.
 
 - **Fields.** Each source field becomes synopsis, keywords, status, label, notes, or is ignored. A status or label value the project
   does not hold (by id or name) is listed with **Add it to the vocabulary**, **Use "…"** (a term the project holds), or **Ignore it**
-  (the default). POV and day are not mapping targets yet: they are coherence scene metadata, a command of their own.
+  (the default). POV, day, participants, locations and plot threads are coherence scene metadata; a source whose format carries them
+  attaches them to the proposed document node, as the CSV/TSV timeline import does (import-table.md §3).
 - **Codex rows.** Each row has its type and an answer: **Import**, **Skip**, **Rename** or **Import as page only**. A name that a
   codex entry or alias holds, or an earlier row of the same import, case-insensitively, starts as Skip and cannot be imported under
   that name; an import never merges into an entry (codex.md §7). An imported row cites the first imported document that holds its
@@ -83,7 +85,7 @@ The preview's in-memory `import.preview` phase is `loading`, `failed` (reading f
 **Import** builds one command (`buildCommit`) and the session dispatches it through `executeAsync`, its pictures staged as the shot
 imports stage theirs. Its params: `parentId` (the manuscript, or a folder of the manuscript: folders are appended, never merged),
 `nodes` (the tree in reading order, each naming its parent folder by index; a top-level node goes under `parentId`, or under
-research with `place: 'research'`), `vocabulary` (the terms to add), `codex` (`codex.importBatch` entries, which may name an
+research with `place: 'research'`; a document may carry the import scene metadata of import-table.md §4), `vocabulary` (the terms to add), `codex` (`codex.importBatch` entries, which may name an
 imported document by index as `node`), and `pictures`.
 
 - **A document's kind.** A document node may carry `kind` — `screenplay`, `av-script` or `comic-script`, the kinds `binder.create`
@@ -96,11 +98,14 @@ imported document by index as `node`), and `pictures`.
 - **What the command checks** (whole batch, before anything is written; every failing node listed): the node shapes and limits, a
   parent that is an earlier folder, the chapter rule, the terms, the picture refs (`import:` tokens, each once) and staging ids, and
   the codex rows through `codex.importBatch`'s own validator against a projection in which a placeholder stands for each new
-  document. The store's apply checks every body's round trip again before its first write.
+  document. Scene metadata is checked there too: codex names become existing entry ids or pending ids of entries in the same batch,
+payoff scenes become pending document ids, a thread may not be paid off by the scene that sets it up, and the coherence projection is
+required whenever any node carries metadata. Before validation, a source's stable `pending-node:<preview id>` payoff ref is rewritten to the flattened node index after exclusions and reordering; an excluded payoff scene drops that thread. A scene reference that names a codex row the writer renamed uses the new name before validation. The store's apply checks every body's round trip again before its first write.
 - **What the apply does.** The pictures first (the only await): through the picture pipeline (dedup by hash, the GPS strip), each
   `](import:…` target becoming the picture's `../assets/` path (pictures.md D5), a codex citation in that body moved with it. Then,
-  synchronously: the terms, the folders and documents, the codex pages and entries (`origin: 'import'`).
-- **One undo.** One compensation takes back the codex entries, the pages, the nodes (last first), the terms and the picture records
+  synchronously: the terms, the folders and documents, the codex pages and entries (`origin: 'import'`), scene metadata in the
+coherence file, and location-entry attachments the metadata names.
+- **One undo.** One compensation takes back the scene metadata and entry attachments it added, the codex entries, the pages, the nodes (last first), the terms and the picture records
   (the files stay, as every picture undo leaves them). Undo returns the manifest to its bytes and every body to what it was.
 - **Who may run it.** The writer: `agentRisk: 'never'`. An agent imports one document at a time through `doc.import`. The command is
   registered only with the asset port (its apply awaits), as `asset.importBatch` is: a host without the port (Node, the MCP server)

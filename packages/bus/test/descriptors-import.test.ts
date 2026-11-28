@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 
 import { COMMAND_REGISTRY, type PerOpFailure } from '../src/index.js';
 import { IMPORT_TREE_NODES_MAX, binderImportTree } from '../src/descriptors-import.js';
-import { CHAPTER_ONE, MANUSCRIPT, makeSnapshot } from './fixtures.js';
+import { CHAPTER_ONE, CODEX_ENTRY, MANUSCRIPT, makeSnapshot } from './fixtures.js';
 
 const SCENE = 'The ferry came at noon. Mara watched it.';
 const BOOK = [
@@ -102,6 +102,30 @@ describe('binder.importTree — the descriptor', () => {
     expect(misquoted.ok).toBe(false);
     // `node` must name an imported document.
     expect(failuresOf(binderImportTree.validate({ nodes: BOOK, codex: { entries: [{ name: 'Mara', node: 1, cite: { from, to: from + 4, quote: 'Mara' } }] } }, makeSnapshot()))[0]?.target).toBe('codex.entries[0].node');
+  });
+
+  it('rewrites imported scene declarations to codex ids and pending payoff scenes', () => {
+    const nodes = [
+      { type: 'folder', title: 'C' },
+      { type: 'document', title: 'Opening', parent: 0, body: 'Opening.', sceneMeta: { pov: 'elena', dayOffset: -14, durationDays: 2, expectedPresent: ['Elena', 'Missing'], storyPart: 'prologue', threads: [{ id: 'Quest', payoff: 'pending:import:2' }] } },
+      { type: 'document', title: 'Payoff', parent: 0, body: 'Payoff.', sceneMeta: { dayOffset: 0, mainStory: true } },
+    ];
+    const result = binderImportTree.validate({ nodes }, makeSnapshot({ coherence: { findings: [], sceneMeta: {} } }));
+    expect(result.ok, result.ok ? '' : result.error.message).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.nodes[1]?.sceneMeta).toEqual({ pov: CODEX_ENTRY, dayOffset: -14, durationDays: 2, expectedPresent: [CODEX_ENTRY], storyPart: 'prologue', threads: [{ id: 'Quest', payoff: 'pending:import:2' }] });
+    expect(result.value.nodes[2]?.sceneMeta).toEqual({ dayOffset: 0, mainStory: true });
+
+    const unresolved = binderImportTree.validate({ nodes: [{ type: 'folder', title: 'C' }, { type: 'document', title: 'S', parent: 0, body: 'x', sceneMeta: { pov: 'Nobody' } }] }, makeSnapshot({ coherence: { findings: [], sceneMeta: {} } }));
+    expect(unresolved.ok).toBe(true);
+    if (unresolved.ok) expect(unresolved.value.nodes[1]?.sceneMeta).toBeUndefined();
+
+    const missingCoherence = binderImportTree.validate({ nodes }, makeSnapshot());
+    expect(missingCoherence.ok).toBe(false);
+    const badDay = failuresOf(binderImportTree.validate({ nodes: [{ type: 'folder', title: 'C' }, { type: 'document', title: 'S', parent: 0, body: 'x', sceneMeta: { dayOffset: 1.5 } }] }, makeSnapshot({ coherence: { findings: [], sceneMeta: {} } })));
+    expect(badDay[0]?.target).toBe('nodes[1].sceneMeta.dayOffset');
+    const badNotes = failuresOf(binderImportTree.validate({ nodes: [{ type: 'folder', title: 'C' }, { type: 'document', title: 'S', parent: 0, body: 'x', sceneMeta: { threads: [{ id: 'Object', payoff: 'pending:import:2', note: {} }, { id: 'Long', payoff: 'pending:import:2', note: 'x'.repeat(201) }] } }, { type: 'document', title: 'P', parent: 0, body: 'x' }] }, makeSnapshot({ coherence: { findings: [], sceneMeta: {} } })));
+    expect(badNotes[0]?.target).toBe('nodes[1].sceneMeta.threads');
   });
 
   it('takes pictures with unique import: refs and staging ids, and refuses a path as a ref', () => {

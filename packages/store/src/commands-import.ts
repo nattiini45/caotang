@@ -232,14 +232,59 @@ function importTreeApply(clock: ApplyClock, assets: ProjectAssetPort): ProjectAp
       if (madeEntries.length === 0 && !hadCodex && codex.length === 0) delete state.manifest.codex;
     }
 
+    // Scene declarations reference codex entries and payoff scenes by the pending refs validation rewrote. Resolve them now
+    // that both the documents and the entries exist. Validation requires the coherence file whenever sceneMeta is present.
+    const addedAttachments: { entryId: string; docId: string }[] = [];
+    if (state.coherence !== undefined) {
+      for (const [index, node] of params.nodes.entries()) {
+        const meta = node.sceneMeta;
+        const docId = ids[index];
+        if (meta === undefined || docId === undefined) continue;
+        const entryRef = (value: string): string => {
+          if (!value.startsWith('pending:import:codex:')) return value;
+          const entry = madeEntries[Number(value.slice('pending:import:codex:'.length))];
+          if (entry === undefined) throw new Error(`binder.importTree reached its apply with an unknown pending codex ref "${value}"`);
+          return entry.id;
+        };
+        const documentRef = (value: string): string => {
+          if (!value.startsWith('pending:import:')) return value;
+          const resolved = ids[Number(value.slice('pending:import:'.length))];
+          if (resolved === undefined) throw new Error(`binder.importTree reached its apply with an unknown pending document ref "${value}"`);
+          return resolved;
+        };
+        state.coherence.sceneMeta[docId] = {
+          ...(meta.pov === undefined ? {} : { pov: entryRef(meta.pov) }),
+          ...(meta.dayOffset === undefined ? {} : { dayOffset: meta.dayOffset }),
+          ...(meta.durationDays === undefined ? {} : { durationDays: meta.durationDays }),
+          ...(meta.storyPart === undefined ? {} : { storyPart: meta.storyPart }),
+          ...(meta.mainStory === true ? { mainStory: true } : {}),
+          ...(meta.expectedPresent === undefined ? {} : { expectedPresent: meta.expectedPresent.map(entryRef) }),
+          ...(meta.threads === undefined ? {} : { threads: meta.threads.map((thread) => ({ ...thread, payoff: documentRef(thread.payoff) })) }),
+        };
+        for (const location of meta.locations ?? []) {
+          const entryId = entryRef(location);
+          const entry = madeEntries.find((candidate) => candidate.id === entryId) ?? state.manifest.codex?.find((candidate) => candidate.id === entryId);
+          if (entry !== undefined && !entry.attachments.includes(docId)) {
+            entry.attachments.push(docId);
+            addedAttachments.push({ entryId, docId });
+          }
+        }
+      }
+    }
+
     context.undo.compensate(`undo the import of ${documents} documents and ${folders} folders`, () => {
       const gone = new Set(madeEntries.map((entry) => entry.id));
+      for (const { entryId, docId } of [...addedAttachments].reverse()) {
+        const entry = state.manifest.codex?.find((candidate) => candidate.id === entryId);
+        if (entry !== undefined) entry.attachments = entry.attachments.filter((id) => id !== docId);
+      }
       if (gone.size > 0 && state.manifest.codex !== undefined) {
         state.manifest.codex = state.manifest.codex.filter((entry) => !gone.has(entry.id));
         // A project with no codex before the import goes back to having none, so the manifest returns to its bytes.
         if (state.manifest.codex.length === 0 && !hadCodex) delete state.manifest.codex;
       }
       for (const id of [...created, ...pageIds].reverse()) {
+        if (state.coherence !== undefined) delete state.coherence.sceneMeta[id];
         if (nodeById(state, id) !== undefined) removeNode(state, id);
       }
       for (const { kind, term } of [...addedTerms].reverse()) {

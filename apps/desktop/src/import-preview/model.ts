@@ -53,6 +53,8 @@ export interface PreviewNode {
   readonly keywords?: readonly string[];
   /** The node's kind: a document is a screenplay, an AV script or a comic script; a folder is a show or a storyboard. Absent: prose, or a plain folder. */
   readonly kind?: 'screenplay' | 'av-script' | 'comic-script' | 'show' | 'storyboard';
+  /** Timeline declarations a scene starts with (CSV/TSV timeline import). */
+  readonly sceneMeta?: ImportTreeNode['sceneMeta'];
   /** Front and back matter only: where it goes. `skip` keeps it out (and the report says so). */
   readonly place?: 'manuscript' | 'research' | 'skip';
   /** The source's own fields (front-matter keys, CSV columns), mapped by the writer in the Fields section. */
@@ -219,6 +221,17 @@ export interface ImportPreviewSource {
   options(): readonly PreviewOption[];
   plan(settings: PreviewSettings, overrides: PreviewOverrides): PreviewPlan;
   fields?(): readonly PreviewField[];
+  /** A source-specific rows preview (the CSV/TSV import's first twenty rows). A column may carry the chip that edits its role. */
+  grid?(settings: PreviewSettings): {
+    readonly columns: readonly {
+      readonly key: string;
+      readonly label: string;
+      readonly chipId?: string;
+      readonly value?: string;
+      readonly options?: readonly { readonly value: string; readonly label: string }[];
+    }[];
+    readonly rows: readonly (readonly string[])[];
+  };
   codexRows?(): readonly PreviewCodexRow[];
   pictures?(): readonly PreviewPicture[];
   /** Text outside the tree that the injection scan reads too (issue #54); its hits are listed by `label`. */
@@ -708,12 +721,41 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
   function addDocument(node: PreviewNode, parent: number | undefined, place: 'research' | undefined): void {
     const body = node.body ?? '';
     if (!helpers.keepsImportedBody(body, node.title)) unkept.push(node.title);
-    nodes.push({ type: 'document', title: node.title, body, ...(node.kind === undefined ? {} : { kind: node.kind }), ...(parent === undefined ? {} : { parent }), ...(place === undefined ? {} : { place }), ...metaOf(node) });
+    nodes.push({ type: 'document', title: node.title, body, ...(node.sceneMeta === undefined ? {} : { sceneMeta: node.sceneMeta }), ...(node.kind === undefined ? {} : { kind: node.kind }), ...(parent === undefined ? {} : { parent }), ...(place === undefined ? {} : { place }), ...metaOf(node) });
     indexOf.set(node.id, nodes.length - 1);
     documents += 1;
   }
 
   for (const node of tree) push(node, undefined, undefined);
+
+  // A renamed imported row is the entity a scene declaration means when it uses the row's source name.
+  const renamedCodex = new Map<string, string>();
+  for (const row of input.codexRows) {
+    const answer = input.codexAnswers[row.id];
+    if (answer?.action === 'rename' && answer.name.trim() !== '') renamedCodex.set(row.name.trim().toLowerCase(), answer.name.trim());
+  }
+  const codexRef = (value: string): string => renamedCodex.get(value.trim().toLowerCase()) ?? value;
+
+  // Stable preview-node payoff refs survive exclusions and reordering; only here do they become the node indexes
+  // `binder.importTree` validates. A target the writer excluded drops its thread rather than pointing at another scene.
+  for (const [nodeIndex, node] of nodes.entries()) {
+    const meta = node.sceneMeta;
+    if (meta === undefined) continue;
+    const threads = meta.threads?.flatMap((thread) => {
+      if (!thread.payoff.startsWith('pending-node:')) return [thread];
+      const target = indexOf.get(thread.payoff.slice('pending-node:'.length));
+      return target === undefined ? [] : [{ ...thread, payoff: `pending:import:${target}` }];
+    });
+    const sceneMeta = { ...meta };
+    if (sceneMeta.pov !== undefined) sceneMeta.pov = codexRef(sceneMeta.pov);
+    if (sceneMeta.expectedPresent !== undefined) sceneMeta.expectedPresent = sceneMeta.expectedPresent.map(codexRef);
+    if (sceneMeta.locations !== undefined) sceneMeta.locations = sceneMeta.locations.map(codexRef);
+    if (threads !== undefined) {
+      if (threads.length === 0) delete sceneMeta.threads;
+      else sceneMeta.threads = threads;
+    }
+    nodes[nodeIndex] = { ...node, sceneMeta };
+  }
 
   // The codex rows, by the writer's answers.
   const entries: ImportTreeCodexEntry[] = [];

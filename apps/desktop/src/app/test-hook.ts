@@ -81,6 +81,10 @@ export interface CaotangTestHook {
   projectId(): string | null;
   /** The picture registry as the manifest holds it: the records and the placements, in order. */
   pictures(): PicturesRow;
+  /** Codex entries as the manifest holds them: id, name, type and attachments. */
+  codex(): readonly { readonly id: string; readonly name: string; readonly type: string; readonly attachments: readonly string[] }[];
+  /** Timeline declarations by document id, as the coherence file holds them. */
+  sceneMeta(): Readonly<Record<string, unknown>>;
 }
 
 export interface PicturesRow {
@@ -150,6 +154,8 @@ export function installTestHook(current: () => ProjectSession | null): void {
     saveState: () => current()?.saveState() ?? null,
     undoGroups: () => current()?.undo.groups().length ?? 0,
     projectId: () => current()?.projectId ?? null,
+    codex: () => (current()?.state.manifest.codex ?? []).map((entry) => ({ id: entry.id, name: entry.name, type: entry.type, attachments: [...entry.attachments] })),
+    sceneMeta: () => ({ ...(current()?.state.coherence?.sceneMeta ?? {}) }),
     pictures: () => {
       const manifest = current()?.state.manifest;
       return {

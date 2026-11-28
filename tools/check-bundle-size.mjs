@@ -79,11 +79,14 @@ export const BUDGET = {
     // #321 FDX import, #327 script settings, #331 tokens, #333 the shared import preview dialog, #330 the shell actions and Classic
     // shell, #329 the plain-text reader, #320 footnotes in the editor) is in the entry, beside #322's own review fixes. The cap is that
     // plus about 1%, rounded up to the thousand.
-    index: 1_250_000,
     // The project store: 695.7 kB raw, 212.5 kB gzip, every view that loads first reads it. It is one chunk because the chunks that load
     // on use (the exporter, the hosted open) read it too, and the default splitting carved it into a chunk per module for them, at 2.6 kB
     // gzip more in the first load than the hosted path itself weighs. Splitting it again means paying that back. The cap is the
     // measurement plus about 1%.
+    // CSV/TSV import (#288): startup modules shared with lazy readers are layered into app-shared (777.2 kB raw measured)
+    // and package-shared (529.8 kB raw measured) instead of dozens of small chunks. The caps are those measurements plus about 1%.
+    'app-shared': 785_000,
+    'package-shared': 535_000,
     'vendor-store': 702_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
@@ -241,6 +244,7 @@ export const BUDGET = {
   // (1,127.8 kB, because the hosted chunks share the store either way), and the hosted open importing the store dynamically
   // (1,161.8 kB: a dynamic import of a barrel pulls its whole re-export graph into shared chunks). The notice's English text is in the
   // entry catalogue as every screen's is, 0.7 kB of that chunk.
+  // CSV/TSV import (#288) measured 1,103,067 bytes gzip after the shared startup modules were layered; the reader and mapping UI stay lazy.
   initialGzip: 1_126_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
