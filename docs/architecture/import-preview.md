@@ -35,11 +35,11 @@ proposed tree?* A source gives:
 | `options()` | Reader toggles: tracked changes, comments → notes, underline → italics, images, snapshots, codex auto-detect (decisions 5 and 6, on by default). An option with `network` (host, count, size) is a network step (decision 10): it starts **off** whatever the source says, and its label names the host, the count and the size. |
 | `plan(settings, overrides)` | The proposed tree (`PreviewNode`: part, chapter, scene, text, front, back), the text pane's blocks, the ✂ markers with the reason for each, the counts, the losses (`LossWarning`s) and the sanity flags, a flag with a one-click fix as overrides. Pure and fast: it is run again on every chip change. |
 | `fields()`, `codexRows()`, `pictures()`, `metadata()` | What there is to map: front-matter keys or columns, codex rows (name, type, the passage that names it, a page of its own text, and the source's own `keywords`, `aliases` and `includePolicy`), pictures (staged bytes behind an `import:` ref the bodies use). A row with `preferPage` always gets its page, even when its name also appears in the tree (a Kanka entity, whose name is in the world-history index); without it a name found in the tree is cited there and no page is made. |
-| `grid(settings)` | Optional tabular rows with a dropdown-bearing header per column (the CSV/TSV import, import-table.md §3): the first rows as text plus each column's chip id, current value and choices. The dialog renders it before the text panes. |
+| `grid(settings)` | Optional tabular rows with a dropdown-bearing header per column (the table import, import-table.md §3): the first rows as text plus each column's chip id, current value and choices. The dialog renders it before the text panes. |
 | `scanExtra()` | Text the reader kept out of the tree (RTF hidden text, deleted revisions, field codes, link targets) that the injection scan reads too; its hits are listed by what they are, with no node. |
 | `report(plan)`, `importLabel(plan)`, `commit`, `readOnly` | For a source whose import is not a binder tree (the Twee import: one dialogue container, written with `dialogue.importInk`). |
 
-The sources built on this contract: the splitter source (`splitter-source.ts`) with the plain-text and RTF/RTFD readers on it (#283, #274, #390), the Twee source (`twee-source.ts`, a custom commit), and the captions source (`captions-source.ts`, #287), which proposes **one AV script episode in a show folder** instead of chapters and scenes and carries the node kinds `binder.create` takes ([import-captions.md](import-captions.md) §5), and the table source (`table-source.ts`, #288), which proposes codex rows or timeline scenes from CSV/TSV ([import-table.md](import-table.md)).
+The sources built on this contract: the splitter source (`splitter-source.ts`) with the plain-text and RTF/RTFD readers on it (#283, #274, #390), the Twee source (`twee-source.ts`, a custom commit), and the captions source (`captions-source.ts`, #287), which proposes **one AV script episode in a show folder** instead of chapters and scenes and carries the node kinds `binder.create` takes ([import-captions.md](import-captions.md) §5), and the table source (`table-source.ts`, #288), which proposes codex rows or timeline scenes from CSV/TSV or one Excel worksheet ([import-table.md](import-table.md), [import-xlsx.md](import-xlsx.md)).
 
 ## 3. Rules first, manual edits second
 
@@ -66,7 +66,7 @@ the old rule. Import waits while it asks.
 - **Fields.** Each source field becomes synopsis, keywords, status, label, notes, or is ignored. A status or label value the project
   does not hold (by id or name) is listed with **Add it to the vocabulary**, **Use "…"** (a term the project holds), or **Ignore it**
   (the default). POV, day, participants, locations and plot threads are coherence scene metadata; a source whose format carries them
-  attaches them to the proposed document node, as the CSV/TSV timeline import does (import-table.md §3).
+  attaches them to the proposed document node, as the table timeline import does (import-table.md §3).
 - **Codex rows.** Each row has its type and an answer: **Import**, **Skip**, **Rename** or **Import as page only**. A name that a
   codex entry or alias holds, or an earlier row of the same import, case-insensitively, starts as Skip and cannot be imported under
   that name; an import never merges into an entry (codex.md §7). An imported row cites the first imported document that holds its

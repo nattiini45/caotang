@@ -1,14 +1,21 @@
 /**
- * **Import CSV/TSV…** (#288): a table chosen in the binder opens in the shared import preview, the writer maps its columns,
+ * **Import spreadsheet…** (#288, #289): a table chosen in the binder opens in the shared import preview, the writer maps its columns,
  * and Import writes codex entries or timeline scenes as one undo step. The reads run in the real lazy reader Worker.
  */
 
 import { expect, test, type Page } from '@playwright/test';
 
+import { cell, xlsx } from '../packages/import-xlsx/test/fixtures/workbook.js';
+
 import { bodyOf, createProject, traceNames, treeOf, waitForSaved } from './support.js';
 
-async function choose(page: Page, name: string, text: string): Promise<void> {
-  await page.locator('input[type="file"][aria-label="CSV or TSV file"]').setInputFiles({ name, mimeType: 'text/csv', buffer: Buffer.from(text, 'utf8') });
+async function choose(page: Page, name: string, text: string | Uint8Array): Promise<void> {
+  const workbook = typeof text !== 'string';
+  await page.locator('input[type="file"][aria-label="Spreadsheet file"]').setInputFiles({
+    name,
+    mimeType: workbook ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'text/csv',
+    buffer: typeof text === 'string' ? Buffer.from(text, 'utf8') : Buffer.from(text),
+  });
 }
 
 async function codexOf(page: Page): Promise<{ id: string; name: string; type: string; attachments: string[] }[]> {
@@ -104,6 +111,40 @@ test('a timeline TSV round trip maps hierarchy, days, people, locations and thre
   expect(await sceneMetaOf(page)).toEqual({});
   expect((await codexOf(page)).some((entry) => entry.name === 'Ada')).toBe(false);
   expect((await treeOf(page)).some((node) => node.title === 'Opening')).toBe(false);
+});
+
+test('an Excel workbook offers its worksheets and imports the chosen sheet as timeline scenes', async ({ page }) => {
+  await createProject(page, 'Table Workbook');
+  const book = xlsx([
+    { name: 'Bible', rows: [
+      [cell('A1', '0', 's'), cell('B1', '1', 's')],
+      [cell('A2', '2', 's'), cell('B2', 'A cartographer', 'inlineStr')],
+    ] },
+    { name: 'Timeline', rows: [
+      [cell('A1', '3', 's'), cell('B1', '4', 's')],
+      [cell('A2', '5', 's'), cell('B2', 'The ferry came at noon.', 'inlineStr')],
+    ] },
+  ], { shared: ['Name', 'Description', 'Elena', 'Title', 'Summary', 'The Landing'] });
+  await choose(page, 'workbook.xlsx', book);
+
+  const dialog = page.getByRole('dialog').last();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('combobox', { name: 'Worksheet' })).toHaveValue('Bible');
+  await expect(dialog.getByRole('combobox', { name: 'Delimiter' })).toHaveCount(0);
+  await dialog.getByRole('combobox', { name: 'Worksheet' }).selectOption('Timeline');
+  await dialog.getByRole('combobox', { name: 'Rows become' }).selectOption('timeline');
+  await expect(dialog.getByRole('table').first()).toContainText('The Landing');
+  await expect(dialog.getByRole('button', { name: 'Import 1 row' })).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Import 1 row' }).click();
+  await expect(dialog).toBeHidden();
+  await waitForSaved(page);
+  expect((await traceNames(page)).filter((name) => name === 'binder.importTree')).toHaveLength(1);
+  expect((await treeOf(page)).some((node) => node.title === 'The Landing')).toBe(true);
+
+  await page.getByRole('button', { name: 'Undo', exact: true }).first().click();
+  await waitForSaved(page);
+  expect((await treeOf(page)).some((node) => node.title === 'The Landing')).toBe(false);
 });
 
 test('a changed column mapping is saved and reapplied to the same column layout', async ({ page }) => {

@@ -354,6 +354,9 @@ importers:
       '@caotang/import-table':
         specifier: workspace:*
         version: link:../../packages/import-table
+      '@caotang/import-xlsx':
+        specifier: workspace:*
+        version: link:../../packages/import-xlsx
       '@caotang/machine':
         specifier: workspace:*
         version: link:../../packages/machine
@@ -1119,6 +1122,15 @@ importers:
         version: link:../import-read
 
   packages/import-table: {}
+
+  packages/import-xlsx:
+    dependencies:
+      '@caotang/import-read':
+        specifier: workspace:*
+        version: link:../import-read
+      '@caotang/import-table':
+        specifier: workspace:*
+        version: link:../import-table
 
   packages/machine: {}
 
