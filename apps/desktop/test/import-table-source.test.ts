@@ -111,6 +111,16 @@ describe('the CSV/TSV preview', () => {
     expect(warning).not.toContain('imported as Other');
   });
 
+
+  it("uses the writer's type mapping for a formula-guarded type value", async () => {
+    const source = await open(bytesOf("Name,Type\nAda,'=character\n"));
+    const initial = initialSettings(source.chips(), source.options());
+    const settings = settingsWith(initial, { 'table-type-0': 'location' });
+    await source.prepare?.(settings, new AbortController().signal);
+    source.plan(settings, NO_OVERRIDES);
+    expect(source.codexRows?.()[0]?.type).toBe('location');
+  });
+
   it('reads UTF-16LE text and round-trips the timeline export into scene declarations', async () => {
     const csv = [
       'reading index,part,title,folder path,day,duration days,end day,day label,mode,pov,expected present,after,threads,open findings,picture ids,picture alt',
@@ -179,6 +189,27 @@ describe('the CSV/TSV preview', () => {
     const validated = COMMAND_REGISTRY['binder.importTree'].descriptor.validate({ ...commit.params, pictures: [] }, project(true) as never);
     expect(validated.ok, validated.ok ? '' : validated.error.message).toBe(true);
     if (validated.ok) expect(validated.value.nodes.find((node) => node.title === 'First')?.sceneMeta?.pov).toBe('pending:import:codex:0');
+  });
+
+  it('orders timeline preview blocks by the same reading order as the scenes', async () => {
+    const source = await open(bytesOf('Title,Order,Body\nFile first,2,A\nFile second,1,B\n'));
+    const initial = initialSettings(source.chips(), source.options());
+    const settings = settingsWith(initial, { 'table-mode': 'timeline' });
+    await source.prepare?.(settings, new AbortController().signal);
+    const plan = source.plan(settings, NO_OVERRIDES);
+    expect(plan.tree[0]?.children?.map((node) => node.title)).toEqual(['File second', 'File first']);
+    expect(plan.blocks.map((block) => block.text)).toEqual(['B', 'A']);
+  });
+
+  it('chooses a plotline payoff from reading order rather than folder traversal', async () => {
+    const csv = 'Title,Order,Folder,Arc,Body\nA,1,Part 1,Quest,a\nB,2,Part 2,,b\nC,3,Part 1,,c\n';
+    const source = await open(bytesOf(csv));
+    const initial = initialSettings(source.chips(), source.options());
+    const settings = settingsWith(initial, { 'table-mode': 'timeline' });
+    await source.prepare?.(settings, new AbortController().signal);
+    const plan = source.plan(settings, NO_OVERRIDES);
+    const first = plan.tree.find((node) => node.title === 'Part 1')?.children?.find((node) => node.title === 'A');
+    expect(first?.sceneMeta?.threads?.[0]?.payoff).toBe('pending-node:scene-2');
   });
 
   it('keeps a thread payoff with its scene when another scene is excluded', async () => {

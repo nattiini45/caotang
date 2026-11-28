@@ -118,10 +118,13 @@ function entityNames(values: readonly string[], except: readonly string[] = []):
   });
 }
 
-const cell = (row: TableCellRow, index: number): string => {
-  const value = (row.cells[index] ?? '').trim();
-  return /^'[=+\-@\t\r]/.test(value) ? value.slice(1) : value;
-};
+/** A spreadsheet cell's text without the apostrophe guard that keeps a leading formula character literal. */
+export function tableCellText(value: string): string {
+  const text = value.trim();
+  return /^'[=+\-@\t\r]/.test(text) ? text.slice(1) : text;
+}
+
+const cell = (row: TableCellRow, index: number): string => tableCellText(row.cells[index] ?? '');
 
 const rowValues = (row: TableCellRow, roles: readonly ColumnRole[], role: ColumnRole): string[] =>
   roles.flatMap((candidate, index) => (candidate === role ? [cell(row, index)].filter((value) => value !== '') : []));
@@ -212,9 +215,9 @@ export function parseTimelineDay(value: string, format: TimelineDateFormat = 'is
   if (dayWord !== null) return Number(dayWord[1]);
   const integer = intValue(text);
   if (integer !== undefined) return integer;
-  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(text);
+  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(text);
   if (iso !== null) return epochDay(Number(iso[1]), Number(iso[2]), Number(iso[3]));
-  const parts = /^(\d{1,2})[./](\d{1,2})[./](\d{2,4})/.exec(text);
+  const parts = /^(\d{1,2})[./](\d{1,2})[./](\d{2,4})$/.exec(text);
   if (parts === null) return undefined;
   let year = Number(parts[3]);
   if (year < 100) year += year < 70 ? 2000 : 1900;
@@ -276,7 +279,7 @@ export function buildTimelineRows(_columns: readonly string[], rows: readonly Ta
       if (parsed === undefined) losses.push({ code: 'bad-number', row: row.line, column: 'duration', value: text });
       return parsed;
     })();
-    if (duration === undefined && start !== undefined && end !== undefined && end >= start) duration = end - start;
+    if (duration === undefined && start !== undefined && end !== undefined && end >= start && startDate.absolute === endDate.absolute) duration = end - start;
     out.push({
       row: row.line,
       title,

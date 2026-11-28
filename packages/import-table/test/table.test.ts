@@ -136,6 +136,20 @@ describe('buildTimelineRows', () => {
     expect(mapped.rows[0]?.start).toBeUndefined();
     expect(mapped.losses).toEqual([expect.objectContaining({ code: 'bad-date', row: 2, value: '10000001' })]);
   });
+
+  it('does not derive a duration across relative and calendar endpoints', () => {
+    const mapped = buildTimelineRows(['Title', 'Start', 'End'], [{ line: 2, cells: ['A', 'Day 0', '2024-01-01'] }], ['title', 'start', 'end']);
+    expect(mapped.rows[0]?.start).toBe(0);
+    expect(mapped.rows[0]?.duration).toBeUndefined();
+  });
+
+  it('rejects trailing text after a calendar date', () => {
+    for (const value of ['2024-04-03garbage', '03.04.2024garbage']) {
+      const mapped = buildTimelineRows(['Title', 'Start'], [{ line: 2, cells: ['A', value] }], ['title', 'start'], { dateFormat: 'dmy' });
+      expect(mapped.rows[0]?.start).toBeUndefined();
+      expect(mapped.losses).toEqual([expect.objectContaining({ code: 'bad-date', row: 2, value })]);
+    }
+  });
 });
 
 describe('duration units and folder roles', () => {

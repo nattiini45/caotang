@@ -11,6 +11,7 @@ import {
   buildTimelineRows,
   guessColumnRoles,
   mapCodexRows,
+  tableCellText,
   tableColumns,
   typeWord,
   type ColumnRole,
@@ -257,7 +258,7 @@ export function tablePreviewSource(fileName: string, bytes: Uint8Array): TableIm
     if (shape === undefined || shape.mode !== 'codex') return [];
     const index = shape.roles.indexOf('type');
     if (index < 0) return [];
-    return [...new Set(shape.data.map((row) => (row.cells[index] ?? '').trim()).filter((value) => value !== ''))];
+    return [...new Set(shape.data.map((row) => tableCellText(row.cells[index] ?? '')).filter((value) => value !== ''))];
   };
   const typeId = (index: number): string => `${TYPE_PREFIX}${index}`;
   const typeOptions = (): { value: string; label: string }[] => [
@@ -342,9 +343,12 @@ export function tablePreviewSource(fileName: string, bytes: Uint8Array): TableIm
     -readonly [K in keyof PreviewNode]: PreviewNode[K];
   } & { children?: MutablePreviewNode[] };
 
+  const orderedTimelineRows = (rows: readonly MappedTimelineRow[]): MappedTimelineRow[] =>
+    rows.length > 0 && rows.every((row) => row.order !== undefined) ? [...rows].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [...rows];
+
   const timelineTree = (rows: readonly MappedTimelineRow[], settings: PreviewSettings): { tree: PreviewNode[]; losses: PreviewLoss[]; scenes: number; words: number } => {
     const losses: PreviewLoss[] = [];
-    const ordered = rows.length > 0 && rows.every((row) => row.order !== undefined) ? [...rows].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [...rows];
+    const ordered = orderedTimelineRows(rows);
     const absolute = ordered.flatMap((row) => row.startAbsolute === true && row.start !== undefined ? [row.start] : []);
     const chosen = settings.chips[DAY_ZERO];
     const chosenRow = chosen?.startsWith('row:') === true ? ordered.find((row) => `row:${row.row}` === chosen) : undefined;
@@ -399,17 +403,9 @@ export function tablePreviewSource(fileName: string, bytes: Uint8Array): TableIm
       (folder.children as MutablePreviewNode[]).push(scene);
     }
 
-    // Import arcs as Caotang threads. The format carries no payoff scene, so the last imported scene is the fallback payoff;
+    // Import arcs as Caotang threads. The format carries no payoff scene, so the last scene in reading order is the fallback payoff;
     // a one-scene import cannot use itself as payoff and names the loss instead.
-    const flat: MutablePreviewNode[] = [];
-    const walk = (nodes: readonly MutablePreviewNode[]): void => {
-      for (const node of nodes) {
-        flat.push(node);
-        if (node.children !== undefined) walk(node.children);
-      }
-    };
-    walk(roots);
-    const documents = flat.filter((node) => node.role === 'scene');
+    const documents = scenes;
     const fallback = documents[documents.length - 1] as MutablePreviewNode | undefined;
     const missingArcs = new Set<string>();
     for (const row of ordered) {
@@ -453,7 +449,7 @@ export function tablePreviewSource(fileName: string, bytes: Uint8Array): TableIm
     }
     const mapped = buildTimelineRows(shape.columns, shape.data, shape.roles, { dateFormat: (settings.chips[DATE_FORMAT] as 'iso' | 'dmy' | 'mdy' | undefined) ?? 'iso' });
     const built = timelineTree(mapped.rows, settings);
-    const blocks = mapped.rows.map((row) => ({ kind: 'para' as const, text: row.body || row.summary }));
+    const blocks = orderedTimelineRows(mapped.rows).map((row) => ({ kind: 'para' as const, text: row.body || row.summary }));
     return {
       blocks,
       markers: [],
