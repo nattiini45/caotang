@@ -92,6 +92,23 @@ describe('plottrPreviewSource', () => {
     expect(secondPlan.tree[0]?.children?.map((node) => node.title)).toEqual(['Second card']);
   });
 
+  it('merges cards across plotlines in line order and keeps stacked cards consecutive', async () => {
+    const file = {
+      series: { name: 'Series' },
+      books: { allIds: [1], 1: { title: 'Book' } },
+      beats: [{ id: 1, title: 'Act', position: 0 }],
+      lines: [{ id: 1, bookId: 1, title: 'One' }, { id: 2, bookId: 1, title: 'Two' }],
+      cards: [
+        { id: 1, beatId: 1, lineId: 1, title: 'Later plotline event', positionWithinLine: 1, positionInChapter: 0 },
+        { id: 2, beatId: 1, lineId: 2, title: 'First stacked card', positionWithinLine: 0, positionInChapter: 0 },
+        { id: 3, beatId: 1, lineId: 1, title: 'Second stacked card', positionWithinLine: 0, positionInChapter: 1 },
+      ],
+    };
+    const source = await openBytes('order.pltr', new TextEncoder().encode(JSON.stringify(file)));
+    const plan = source.plan(settings(source), { noSplit: [], sceneAt: [], chapterAt: [] });
+    expect(plan.tree[0]?.children?.map((node) => node.title)).toEqual(['First stacked card', 'Second stacked card', 'Later plotline event']);
+  });
+
   it('leaves unsupported images out with a named loss instead of aborting the outline', async () => {
     const raw = JSON.parse(new TextDecoder().decode(fixture('simple-story.pltr'))) as Record<string, unknown>;
     raw['images'] = { 1: { id: 1, name: 'Motion', data: 'data:image/gif;base64,R0lGODdhAQABAIAAAP///////ywAAAAAAQABAAACAkQBADs=' } };

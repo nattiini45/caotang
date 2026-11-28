@@ -33,7 +33,7 @@ const failure = (fileName: string, kind: string): Error => {
 const imageRef = (id: string): string => `import:plottr-image-${id.replaceAll(/[^a-zA-Z0-9_-]/g, '-')}`;
 
 function compareCards(a: PlottrCard, b: PlottrCard): number {
-  return (a.positionInChapter - b.positionInChapter) || (a.positionWithinLine - b.positionWithinLine) || (a.position - b.position) || (Number(a.id) || 0) - (Number(b.id) || 0);
+  return (a.positionWithinLine - b.positionWithinLine) || (a.positionInChapter - b.positionInChapter) || (a.position - b.position) || (Number(a.id) || 0) - (Number(b.id) || 0);
 }
 
 /** Open a `.pltr` file for the shared preview. */
