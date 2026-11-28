@@ -30,10 +30,10 @@ describe('readPlottr', () => {
     expect(read.value.beats.map((beat) => beat.title)).toEqual(['Act 1', 'Act 2', 'Act 3', 'Act 4', 'Act 5']);
     expect(read.value.lines.map((line) => line.title)).toContain('Summary');
     expect(read.value.characters.find((entity) => entity.name === 'Hamlet')).toMatchObject({ description: 'Prince of Denmark', imageId: '1' });
-    expect(read.value.characters.find((entity) => entity.name === 'Hamlet')?.attributes.Role).toBe('Protagonist');
+    expect(read.value.characters.find((entity) => entity.name === 'Hamlet')?.attributes.find((attribute) => attribute.key === 'Role')?.value).toBe('Protagonist');
     expect(read.value.places.find((entity) => entity.name === 'Elsinore Castle')).toMatchObject({ imageId: '9' });
     expect(read.value.notes.length).toBeGreaterThan(0);
-    expect(read.value.tags['7']).toBe('THEME: Mortality');
+    expect(read.value.tags.get('7')).toBe('THEME: Mortality');
     expect(read.value.images.length).toBeGreaterThan(0);
     expect(read.value.images[0]?.bytes.length).toBeGreaterThan(100);
   });
@@ -55,6 +55,25 @@ describe('readPlottr', () => {
     expect(read.value.books).toEqual([{ id: '1', title: 'First' }, { id: '2', title: 'Second' }]);
     expect(read.value.beats.map((beat) => `${beat.bookId}:${beat.title}`)).toEqual(['1:Act', '2:Second act']);
     expect(read.value.unknownKeys).toEqual(['futureFeature']);
+  });
+
+  it('keeps hostile object keys as data instead of object properties', () => {
+    const file = {
+      series: { name: 'Series' },
+      beats: [],
+      books: { allIds: [1], 1: { title: 'Book' } },
+      lines: [],
+      cards: [],
+      characters: [{ id: '__proto__', name: 'Mara', ['__proto__']: 'polluted' }],
+      tags: [{ id: '__proto__', title: 'Hostile' }],
+      categories: { characters: [{ id: '__proto__', name: 'Category' }] },
+    };
+    const read = readPlottr(new TextEncoder().encode(JSON.stringify(file)));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.value.characters[0]?.attributes).toContainEqual({ key: '__proto__', value: 'polluted' });
+    expect(read.value.tags.get('__proto__')).toBe('Hostile');
+    expect(read.value.categories.get('__proto__')).toBe('Category');
   });
 
   it('names malformed JSON and non-Plottr JSON instead of throwing', () => {

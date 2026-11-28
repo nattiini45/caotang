@@ -43,7 +43,7 @@ export function plottrPreviewSource(fileName: string, bytes: Uint8Array): Plottr
   let currentSettings: PreviewSettings | null = null;
 
   const selectedBook = (settings: PreviewSettings): string => settings.chips[BOOK] ?? read?.books[0]?.id ?? '1';
-  const tagNames = (ids: readonly string[]): string[] => ids.map((id) => read?.tags[id]).filter((name): name is string => name !== undefined);
+  const tagNames = (ids: readonly string[]): string[] => ids.map((id) => read?.tags.get(id)).filter((name): name is string => name !== undefined);
   const charactersById = () => new Map((read?.characters ?? []).map((entity) => [entity.id, entity.name]));
   const placesById = () => new Map((read?.places ?? []).map((entity) => [entity.id, entity.name]));
   const image = (id: string | undefined) => read?.images.find((item) => item.id === id);
@@ -180,7 +180,7 @@ export function plottrPreviewSource(fileName: string, bytes: Uint8Array): Plottr
 
   const entityBody = (entity: PlottrRead['characters'][number]): string => {
     const picture = imageMarkdown(entity.imageId, entity.name);
-    const attributes = Object.entries(entity.attributes).map(([key, value]) => `## ${key}\n\n${value}`).join('\n\n');
+    const attributes = entity.attributes.map((attribute) => `## ${attribute.key}\n\n${attribute.value}`).join('\n\n');
     return [`# ${entity.name}`, picture, entity.description, entity.notes, attributes].filter((part) => part !== '').join('\n\n');
   };
 
@@ -207,7 +207,7 @@ export function plottrPreviewSource(fileName: string, bytes: Uint8Array): Plottr
       if (read === null) return [];
       const data: PlottrRead = read;
       const rowOf = (entity: PlottrRead['characters'][number], type: 'character' | 'location', linked: 'characters' | 'places') => {
-        const category = data.categories[entity.categoryId ?? ''];
+        const category = entity.categoryId === undefined ? undefined : data.categories.get(entity.categoryId);
         const keywords = [...new Set([...tagNames(entity.tags), ...(category === undefined ? [] : [category])])];
         const attachmentNodes = data.notes.filter((note) => note[linked].includes(entity.id)).map((note) => `note-${note.id}`);
         const description = [entity.description, entity.notes].filter((part) => part !== '').join('\n\n').slice(0, 2000);

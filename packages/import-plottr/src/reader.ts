@@ -28,6 +28,11 @@ export interface PlottrCard {
   readonly imageId?: string;
   readonly pov?: string;
 }
+export interface PlottrAttribute {
+  readonly key: string;
+  readonly value: string;
+}
+
 export interface PlottrEntity {
   readonly id: string;
   readonly name: string;
@@ -36,7 +41,7 @@ export interface PlottrEntity {
   readonly tags: readonly string[];
   readonly categoryId?: string;
   readonly imageId?: string;
-  readonly attributes: Readonly<Record<string, string>>;
+  readonly attributes: readonly PlottrAttribute[];
 }
 export interface PlottrNote {
   readonly id: string;
@@ -63,8 +68,8 @@ export interface PlottrRead {
   readonly characters: readonly PlottrEntity[];
   readonly places: readonly PlottrEntity[];
   readonly notes: readonly PlottrNote[];
-  readonly tags: Readonly<Record<string, string>>;
-  readonly categories: Readonly<Record<string, string>>;
+  readonly tags: ReadonlyMap<string, string>;
+  readonly categories: ReadonlyMap<string, string>;
   readonly images: readonly PlottrImage[];
   readonly unknownKeys: readonly string[];
   readonly imageBytesDropped: number;
@@ -151,11 +156,11 @@ function entityOf(raw: unknown): PlottrEntity | undefined {
   const id = idText(raw['id']);
   const name = text(raw['name']);
   if (id === undefined || name === undefined) return undefined;
-  const attributes: Record<string, string> = Object.create(null) as Record<string, string>;
+  const attributes: PlottrAttribute[] = [];
   for (const [key, value] of Object.entries(raw)) {
     if (STANDARD_ENTITY_KEYS.has(key)) continue;
     const markdown = markdownValue(value);
-    if (markdown !== '') attributes[key] = markdown;
+    if (markdown !== '') attributes.push({ key, value: markdown });
   }
   return {
     id,
@@ -237,18 +242,18 @@ export function readPlottr(bytes: Uint8Array): PlottrResult {
     return [{ id, bookId, title, position: number(line['position']), series: bookId === 'series' }];
   });
 
-  const tagNames: Record<string, string> = Object.create(null) as Record<string, string>;
+  const tagNames = new Map<string, string>();
   for (const tag of list(raw['tags'])) if (isRecord(tag)) {
     const id = idText(tag['id']);
     const title = text(tag['title']);
-    if (id !== undefined && title !== undefined) tagNames[id] = title;
+    if (id !== undefined && title !== undefined) tagNames.set(id, title);
   }
-  const categories: Record<string, string> = Object.create(null) as Record<string, string>;
+  const categories = new Map<string, string>();
   for (const group of ['characters', 'places'] as const) for (const category of list(isRecord(raw['categories']) ? raw['categories'][group] : undefined)) {
     if (!isRecord(category)) continue;
     const id = idText(category['id']);
     const name = text(category['name']);
-    if (id !== undefined && name !== undefined) categories[id] = name;
+    if (id !== undefined && name !== undefined) categories.set(id, name);
   }
 
   const cards: PlottrCard[] = list(raw['cards']).flatMap((card) => {
