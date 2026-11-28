@@ -28,12 +28,15 @@ beforeEach(() => { activateEnglish(); pinFormatLocale('en-US'); vi.stubGlobal('W
 afterEach(() => { activateEnglish(); pinFormatLocale(undefined); vi.unstubAllGlobals(); });
 
 const fixture = (name: string): Uint8Array => new Uint8Array(readFileSync(resolve(__dirname, '../../../packages/import-plottr/test/fixtures', name)));
-async function open(name = 'simple-story.pltr') {
-  const opened = plottrPreviewSource(name, fixture(name));
+async function openBytes(name: string, bytes: Uint8Array) {
+  const opened = plottrPreviewSource(name, bytes);
   expect(opened.ok).toBe(true);
   if (!opened.ok) throw new Error('not opened');
   await opened.source.load?.(() => {}, new AbortController().signal);
   return opened.source;
+}
+async function open(name = 'simple-story.pltr') {
+  return openBytes(name, fixture(name));
 }
 const settings = (source: Awaited<ReturnType<typeof open>>): PreviewSettings => initialSettings(source.chips(), source.options());
 
@@ -62,6 +65,29 @@ describe('plottrPreviewSource', () => {
     expect(source.codexRows?.().some((row) => row.name === 'Elsinore Castle' && row.type === 'location')).toBe(true);
     expect(plan.tree.some((node) => node.place === 'research' && node.title === 'Character Chart')).toBe(true);
     expect(source.pictures?.().length).toBeGreaterThan(0);
+  });
+
+  it('leaves a GIF out with a named loss instead of aborting the outline', async () => {
+    const raw = JSON.parse(new TextDecoder().decode(fixture('simple-story.pltr'))) as Record<string, unknown>;
+    raw['images'] = { 1: { id: 1, name: 'Motion', data: 'data:image/gif;base64,R0lGODdhAQABAIAAAP///////ywAAAAAAQABAAACAkQBADs=' } };
+    const source = await openBytes('gif.pltr', new TextEncoder().encode(JSON.stringify(raw)));
+    const plan = source.plan(settings(source), { noSplit: [], sceneAt: [], chapterAt: [] });
+    expect(source.pictures?.()).toEqual([]);
+    expect(plan.losses.map((loss) => loss.message).join('\n')).toContain('GIF images were left out');
+  });
+
+  it('turning images off removes picture markdown and codex visual references', async () => {
+    const raw = JSON.parse(new TextDecoder().decode(fixture('simple-story.pltr'))) as Record<string, unknown>;
+    const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    raw['images'] = { 1: { id: 1, name: 'Portrait', data: `data:image/png;base64,${png}` } };
+    raw['characters'] = [{ id: 1, name: 'Ada', description: 'Navigator', imageId: 1 }];
+    const source = await openBytes('no-pictures.pltr', new TextEncoder().encode(JSON.stringify(raw)));
+    const initial = settings(source);
+    initial.options['pictures'] = false;
+    source.plan(initial, { noSplit: [], sceneAt: [], chapterAt: [] });
+    const row = source.codexRows?.().find((item) => item.name === 'Ada');
+    expect(row?.visualRefs).toBeUndefined();
+    expect(row?.page?.body).not.toContain('import:plottr-image');
   });
 
   it('commits through the shared importTree shape in one plan', async () => {

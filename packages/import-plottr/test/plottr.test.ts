@@ -69,5 +69,6 @@ describe('slateMarkdown', () => {
       { type: 'heading-2', children: [{ text: 'A heading' }] },
       { type: 'paragraph', children: [{ text: 'plain ' }, { text: 'bold', bold: true }, { text: ' and ' }, { text: 'italic', italic: true }] },
     ])).toBe('## A heading\n\nplain **bold** and *italic*');
+    expect(slateMarkdown([{ type: 'paragraph', children: [{ text: '\\already *marked*' }] }])).toBe('\\\\already \\*marked\\*');
   });
 });
